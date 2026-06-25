@@ -20,3 +20,8 @@ frontend/dist/
 # Sistema
 .DS_Store
 Thumbs.db
+
+.clawai/
+*.log
+.env
+.env.*

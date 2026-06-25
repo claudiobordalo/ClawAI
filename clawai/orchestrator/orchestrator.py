@@ -6,24 +6,23 @@ from pathlib import Path
 from clawai.agents.patch_agent import patch_agent
 from clawai.agents.patch_applier import patch_applier
 from clawai.agents.team_leader import team_leader
+from clawai.tools.registry import tool_registry
 
 
 @dataclass
 class ExecutionResult:
 
     planning: str
-
     research: str
-
     implementation: str
-
     review: str
-
     tests: str
 
     preview: str
 
     modified_files: list[str]
+
+    available_tools: list[str]
 
 
 class Orchestrator:
@@ -45,6 +44,10 @@ class Orchestrator:
 Objetivo:
 
 {objective}
+
+Ferramentas disponíveis:
+
+{", ".join(tool_registry.names())}
 
 Planejamento:
 
@@ -97,6 +100,8 @@ Testes:
             preview=preview,
 
             modified_files=modified_files,
+
+            available_tools=tool_registry.names(),
 
         )
 
