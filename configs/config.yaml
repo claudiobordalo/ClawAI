@@ -1,0 +1,17 @@
+application:
+  name: ClawAI
+  version: 0.1.0
+  debug: false
+
+paths:
+  logs: data/logs
+  memory: data/memory
+  projects: data/projects
+
+ollama:
+  host: http://localhost:11434
+
+models:
+  default: qwen2.5-coder:14b
+  planner: qwen3:8b
+  embedding: nomic-embed-text

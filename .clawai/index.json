@@ -1,0 +1,19 @@
+{
+    "name": "ClawAI",
+    "root": "D:\\ClawAI",
+    "total_files": 6586,
+    "total_directories": 791,
+    "languages": {
+        "Python": 4999,
+        "Markdown": 31,
+        "YAML": 3,
+        "SQL": 16,
+        "JSON": 51,
+        "JavaScript": 1
+    },
+    "readme": true,
+    "git": true,
+    "pyproject": true,
+    "requirements": false,
+    "package_json": false
+}

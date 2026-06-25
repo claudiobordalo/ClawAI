@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "scripts": {
+    "backend": "uv run python -m uvicorn api:app --reload",
+    "frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3"
+  }
+}
