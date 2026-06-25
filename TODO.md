@@ -1,0 +1,7 @@
+- [ ] Implement IgnoreEngine (.gitignore + internal ignore rules + binary detection)
+- [ ] Implement ProjectTree (lightweight structure only)
+- [ ] Implement Scanner (discover directories/files, respects IgnoreEngine; does not read file contents)
+- [ ] Implement FileReader (on-demand read; never cache full file)
+- [ ] Implement Workspace (open/close/get_tree; wrappers for backward-compatible load_project/build_context)
+- [ ] Add unit tests for all new components
+- [ ] Run pytest and fix any regressions

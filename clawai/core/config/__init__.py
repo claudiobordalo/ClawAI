@@ -1,6 +1,6 @@
-from .env_loader import EnvLoader
-from .json_loader import JsonLoader
-from .yaml_loader import YamlLoader
+from .loaders import EnvLoader
+from .loaders import JsonLoader
+from .loaders import YamlLoader
 
 __all__ = [
     "YamlLoader",

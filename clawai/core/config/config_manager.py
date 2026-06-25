@@ -29,6 +29,8 @@ class ConfigManager:
         if self._validator is not None:
             self._validator.validate(self._config)
 
+        self._settings.apply_config(self._config)
+
     def reload(self) -> None:
         self.load()
 

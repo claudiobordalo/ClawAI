@@ -2,6 +2,7 @@
 
 import os
 
+from clawai.core.config.settings import Settings
 from clawai.providers.base import BaseProvider
 from clawai.providers.implementations.ollama_provider import OllamaProvider
 
@@ -9,13 +10,19 @@ from clawai.providers.implementations.ollama_provider import OllamaProvider
 class ProviderFactory:
 
     @staticmethod
-    def create() -> BaseProvider:
+    def create(
+        settings: Settings | None = None,
+        model: str | None = None,
+    ) -> BaseProvider:
 
-        model = os.getenv(
-            "CLAWAI_MODEL",
-            "qwen2.5-coder:14b",
+        resolved_settings = settings or Settings()
+        resolved_model = (
+            model
+            or os.getenv("CLAWAI_MODEL")
+            or resolved_settings.default_model
         )
 
         return OllamaProvider(
-            model=model,
+            model=resolved_model,
+            host=resolved_settings.ollama_host,
         )

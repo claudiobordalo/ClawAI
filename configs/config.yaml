@@ -14,4 +14,22 @@ ollama:
 models:
   default: qwen2.5-coder:14b
   planner: qwen3:8b
+  coder: qwen2.5-coder:14b
+  reviewer: deepseek-r1:8b
+  vision: qwen2.5vl:7b
   embedding: nomic-embed-text
+
+resources:
+  cpu_busy_percent: 85
+  ram_busy_percent: 85
+  disk_busy_percent: 95
+  critical_processes:
+    - gta5.exe
+    - dofus.exe
+    - ankama launcher.exe
+    - blender.exe
+    - unrealeditor.exe
+    - unity.exe
+    - cl.exe
+    - msbuild.exe
+    - ninja.exe
