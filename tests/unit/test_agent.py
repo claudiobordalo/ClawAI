@@ -372,13 +372,18 @@ class TestAutonomousAgent:
         )
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
+            retry_policy=RetryPolicy(),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         session = agent.run("Fix bug")
         assert session.state == ExecutionState.COMPLETED
         assert len(session.completed_goals) >= 1
@@ -397,14 +402,18 @@ class TestAutonomousAgent:
         )
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
             retry_policy=RetryPolicy(max_retries=1, base_delay=0.01),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         session = agent.run("Fix bug")
         assert len(session.failed_goals) >= 1
 
@@ -415,13 +424,18 @@ class TestAutonomousAgent:
         executor = MagicMock()
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
+            retry_policy=RetryPolicy(),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         agent.cancel()
         session = agent.run("Fix bug")
         assert session.state in (ExecutionState.COMPLETED, ExecutionState.CANCELLED)
@@ -439,13 +453,18 @@ class TestAutonomousAgent:
         )
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
+            retry_policy=RetryPolicy(),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         agent.pause()
         agent.resume()
         session = agent.run("Fix bug")
@@ -458,13 +477,18 @@ class TestAutonomousAgent:
         executor = MagicMock()
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
+            retry_policy=RetryPolicy(),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         agent.stop()
         session = agent.run("Fix bug")
         assert session.state in (ExecutionState.COMPLETED, ExecutionState.CANCELLED)
@@ -484,7 +508,8 @@ class TestAutonomousAgent:
             event_bus=bus,
         )
         assert agent.context is not None
-        assert agent.loop is None
+        assert agent.loop is not None
+
 
     def test_agent_retry_then_success(self):
         planner = GoalPlanner()
@@ -513,14 +538,18 @@ class TestAutonomousAgent:
         executor.run = run_side_effect
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
             retry_policy=RetryPolicy(max_retries=2, base_delay=0.01),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         session = agent.run("Fix bug")
         assert len(session.completed_goals) >= 1
 
@@ -537,13 +566,18 @@ class TestAutonomousAgent:
         )
         bus = GoalEventBus()
 
-        agent = AutonomousAgent(
+        ctx = AgentContext(
             planner=planner,
             goal_manager=gm,
             executor=executor,
             memory=mem,
             event_bus=bus,
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
+            retry_policy=RetryPolicy(),
+            config=AgentConfiguration(),
         )
+        loop = AgentLoop(ctx)
+        agent = AutonomousAgent(context=ctx, agent_loop=loop)
         agent.run("Fix bug")
         loop = agent.loop
         assert loop is not None

@@ -38,11 +38,6 @@ from .metrics import AgentMetrics
 logger = logging.getLogger("clawai.agent")
 
 
-# ---------------------------------------------------------------------------
-# Contracts (compatibilidade com testes)
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True, slots=True)
 class IterationRecord:
     iteration: int
@@ -165,7 +160,11 @@ class AgentLoop(AbstractAgentLoop):
                     self._metrics.replan_count += 1
                     session.state = ExecutionState.REPLANNING
                     bus.emit(PLANNER_STARTED, session_id, reason="replan")
-                    bus.emit(REPLAN_STARTED, objective, previous_attempts=self._metrics.replan_count)
+                    bus.emit(
+                        REPLAN_STARTED,
+                        objective,
+                        previous_attempts=self._metrics.replan_count,
+                    )
                     ctx = PlanningContext(
                         objective=objective,
                         engineering_memory=memory,
@@ -174,10 +173,14 @@ class AgentLoop(AbstractAgentLoop):
                     )
                     backlog = planner.plan(objective, context=ctx)
                     bus.emit(
-                        PLANNER_FINISHED, session_id, goal_count=len(backlog.goals)
+                        PLANNER_FINISHED,
+                        session_id,
+                        goal_count=len(backlog.goals),
                     )
                     bus.emit(
-                        REPLAN_COMPLETED, objective, goal_count=len(backlog.goals)
+                        REPLAN_COMPLETED,
+                        objective,
+                        goal_count=len(backlog.goals),
                     )
 
             if not self._cancelled:
@@ -234,11 +237,17 @@ class AgentLoop(AbstractAgentLoop):
             )
             return exec_result
 
-        def _emit_cognitive_events(
-            cognitive_result: Any,
-        ) -> None:
-            bus.emit(COGNITIVE_REVIEW, goal.id, review_result=cognitive_result.assessment.value)
-            bus.emit(COGNITIVE_DECISION, goal.id, next_action=cognitive_result.next_action)
+        def _emit_cognitive_events(cognitive_result: Any) -> None:
+            bus.emit(
+                COGNITIVE_REVIEW,
+                goal.id,
+                review_result=cognitive_result.assessment.value,
+            )
+            bus.emit(
+                COGNITIVE_DECISION,
+                goal.id,
+                next_action=cognitive_result.next_action,
+            )
 
         def _build_cognitive_result(
             success: bool,
@@ -247,6 +256,7 @@ class AgentLoop(AbstractAgentLoop):
             duration: float,
         ) -> Any:
             import time as _time
+
             t0 = _time.perf_counter()
             reasoning = reasoning_engine.analyze(
                 goal_id=goal.id,
@@ -299,9 +309,7 @@ class AgentLoop(AbstractAgentLoop):
                 if reasoning.next_action == "continue":
                     gm.complete_goal(goal.id)
                     session.completed_goals.append(goal.id)
-                    bus.emit(
-                        GOAL_FINISHED, goal.id, title=goal.title, duration=duration
-                    )
+                    bus.emit(GOAL_FINISHED, goal.id, title=goal.title, duration=duration)
                     logger.info(
                         "Goal completed",
                         extra={
@@ -344,9 +352,7 @@ class AgentLoop(AbstractAgentLoop):
 
                 gm.fail_goal(goal.id)
                 session.failed_goals.append(goal.id)
-                error_str = (
-                    "; ".join(exec_errors) if exec_errors else "execution_failed"
-                )
+                error_str = "; ".join(exec_errors) if exec_errors else "execution_failed"
                 bus.emit(GOAL_FAILED, goal.id, title=goal.title, error=error_str)
                 logger.warning(
                     "Goal failed",

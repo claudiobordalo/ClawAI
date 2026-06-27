@@ -9,6 +9,7 @@ from clawai.executor import AbstractExecutor
 from clawai.goals import AbstractGoalManager, GoalEventBus
 
 from .abstract_autonomous_agent import AbstractAutonomousAgent
+from .abstract_agent_loop import AbstractAgentLoop
 from .abstract_agent_loop import AbstractAgentLoop as _AbstractAgentLoop
 from .abstract_checkpoint_manager import AbstractCheckpointManager
 from .agent_context import AgentConfiguration, AgentContext
@@ -35,20 +36,24 @@ class AutonomousAgent(AbstractAutonomousAgent):
     ) -> None:
         if context is not None:
             self._context = context
-            self._loop = agent_loop
-            return
-        self._context = AgentContext(
-            planner=planner,
-            goal_manager=goal_manager,
-            executor=executor,
-            memory=memory,
-            event_bus=event_bus or GoalEventBus(),
-            reasoning_engine=reasoning_engine or CognitiveFactory().create_reasoning_engine(),
-            retry_policy=retry_policy or RetryPolicy(),
-            config=config or AgentConfiguration(),
-            checkpoint_manager=checkpoint_manager,
+        else:
+            self._context = AgentContext(
+                planner=planner,
+                goal_manager=goal_manager,
+                executor=executor,
+                memory=memory,
+                event_bus=event_bus or GoalEventBus(),
+                reasoning_engine=reasoning_engine or CognitiveFactory().create_reasoning_engine(),
+                retry_policy=retry_policy or RetryPolicy(),
+                config=config or AgentConfiguration(),
+                checkpoint_manager=checkpoint_manager,
+            )
+
+        # Canonical behavior: always create/use an AgentLoop from the context
+        # unless one was explicitly provided.
+        self._loop: Optional[AbstractAgentLoop] = agent_loop or AbstractAgentLoop.create_default(
+            self._context
         )
-        self._loop: Optional[AbstractAgentLoop] = agent_loop
 
     @property
     def context(self) -> AgentContext:

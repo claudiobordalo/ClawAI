@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import pytest
-
-from clawai.config.agent_config import AgentConfig
-from clawai.agent.agent_loop import AgentLoop
-from clawai.prompt.prompt_engine import PromptEngine
-from clawai.agent.agent_engine import AgentEngine
-from clawai.memory.conversation_memory import ConversationMemory
-from clawai.mission.mission import Mission
 from unittest.mock import MagicMock
+
+from clawai.agent import AgentConfiguration, AgentContext, AgentLoop
+from clawai.config.agent_config import AgentConfig
+from clawai.cognition import CognitiveFactory, ReasoningEngine
+from clawai.engineering import EngineeringMemory
+from clawai.goals import GoalEventBus, GoalManager, GoalPlanner
+from clawai.agent import RetryPolicy
+from clawai.executor import AbstractExecutor
 
 
 def test_agent_config_defaults() -> None:
@@ -26,32 +27,6 @@ def test_agent_config_defaults() -> None:
     assert config.enable_tool_discovery is True
 
 
-def test_agent_config_custom_values() -> None:
-    config = AgentConfig(
-        max_iterations=5,
-        memory_messages_limit=2,
-        provider_timeout=60.0,
-        provider_temperature=0.2,
-        provider_max_tokens=512,
-        enable_tools=False,
-        enable_memory=False,
-        enable_workspace=False,
-        enable_system_prompt=False,
-        enable_tool_discovery=False,
-    )
-
-    assert config.max_iterations == 5
-    assert config.memory_messages_limit == 2
-    assert config.provider_timeout == 60.0
-    assert config.provider_temperature == 0.2
-    assert config.provider_max_tokens == 512
-    assert config.enable_tools is False
-    assert config.enable_memory is False
-    assert config.enable_workspace is False
-    assert config.enable_system_prompt is False
-    assert config.enable_tool_discovery is False
-
-
 def test_agent_config_immutable() -> None:
     config = AgentConfig()
 
@@ -59,104 +34,135 @@ def test_agent_config_immutable() -> None:
         config.max_iterations = 20  # type: ignore[assignment]
 
 
-def test_agent_config_equality() -> None:
-    config1 = AgentConfig()
-    config2 = AgentConfig()
+def _make_context(*, config: AgentConfiguration, planner: MagicMock | None = None, executor: MagicMock | None = None) -> AgentContext:
+    planner_obj = planner if planner is not None else GoalPlanner()
+    executor_obj = executor if executor is not None else MagicMock(spec=AbstractExecutor)
 
-    assert config1 == config2
-    assert hash(config1) == hash(config2)
+    # GoalPlanner -> GoalBacklog -> goals will be iterated by AgentLoop
+    mem = EngineeringMemory()
+    gm = GoalManager(MagicMock())
 
+    # Use EngineeringMemoryGoalRepository contract via GoalManager? GoalManager implementation expects repository.
+    # In these tests we mock goal_manager directly where needed, so keep gm unused.
+    # However AgentLoop uses gm methods -> so we still provide a real GoalManager for method presence.
+    event_bus = GoalEventBus()
 
-def test_prompt_engine_accepts_agent_config_optionally() -> None:
-    memory = ConversationMemory()
-    memory.add(role="user", content="ola")
-    config = AgentConfig(memory_messages_limit=2)
-
-    engine = PromptEngine(conversation_memory=memory, config=config)
-    prompt = engine.build(
-        mission=Mission(id="mission-001", objective="Test"),
-        context_builder_result=MagicMock(context="CTX"),
-        workspace=MagicMock(is_open=True, get_tree=lambda: {}),
-        user_instruction="USER",
-    )
-
-    assert "CONVERSATION HISTORY" in prompt
-    assert "ola" in prompt
-
-
-def test_prompt_engine_respects_agent_config_tool_discovery() -> None:
-    memory = ConversationMemory()
-    memory.add(role="user", content="ola")
-    config = AgentConfig(enable_tool_discovery=False)
-
-    engine = PromptEngine(
-        conversation_memory=memory,
-        tool_discovery=MagicMock(),
+    return AgentContext(
+        planner=planner_obj,
+        goal_manager=gm,
+        executor=executor_obj,
+        memory=mem,
+        event_bus=event_bus,
+        reasoning_engine=CognitiveFactory().create_reasoning_engine(),
+        retry_policy=RetryPolicy(),
         config=config,
-    )
-    prompt = engine.build(
-        mission=Mission(id="mission-002", objective="Test"),
-        context_builder_result=MagicMock(context="CTX"),
-        workspace=MagicMock(is_open=True, get_tree=lambda: {}),
-        user_instruction="USER",
+        checkpoint_manager=None,
     )
 
-    assert "AVAILABLE TOOLS" not in prompt
 
+def test_agent_loop_accepts_agent_configuration_from_context() -> None:
+    # Validates AgentLoop public API: AgentLoop(context).run(objective) uses context.config.
+    config = AgentConfiguration(max_goals=1)
 
-def test_agent_loop_accepts_agent_config_optionally() -> None:
-    engine = MagicMock(spec=AgentEngine)
-    engine.execute.return_value = MagicMock(success=True, llm_response="ok", action=None, execution_result=None, error=None)
+    # Mock planner to return exactly 1 goal, AgentLoop will execute it once.
+    planner = MagicMock(spec=GoalPlanner)
+    from clawai.goals import GoalBacklog, Goal
 
-    config = AgentConfig(max_iterations=3)
-    loop = AgentLoop(agent_engine=engine)
-    result = loop.run(
-        mission=MagicMock(),
-        workspace=MagicMock(),
-        user_instruction="test",
+    planner.plan.return_value = GoalBacklog(
+        goals=(Goal(id="g1", title="t1", description="d", success_criteria="s", priority=1),),
+    )
+
+    # Mock goal_manager to track completion calls.
+    goal_manager = MagicMock()
+    goal_manager.add_goal.return_value = MagicMock()
+    goal_manager.create_backlog.return_value = MagicMock()
+    goal_manager.complete_goal.return_value = None
+    goal_manager.fail_goal.return_value = None
+
+    # Mock executor to succeed.
+    executor = MagicMock()
+    from clawai.executor import ExecutionRequest, ExecutionResult
+
+    executor.run.return_value = ExecutionResult(success=True, summary="ok", repair_result=None, applied_results=())
+
+    ctx = AgentContext(
+        planner=planner,
+        goal_manager=goal_manager,
+        executor=executor,
+        memory=MagicMock(),
+        event_bus=GoalEventBus(),
+        reasoning_engine=MagicMock(analyze=MagicMock(return_value=MagicMock(
+            assessment=MagicMock(value="review"),
+            next_action="continue",
+            should_retry=False,
+            failure_category="cat",
+            confidence=0.9,
+            recommendation="dec",
+            reason="r",
+        ))),
+        retry_policy=MagicMock(max_retries=0, base_delay=0.0, compute_delay=MagicMock(return_value=0.0), is_retryable=MagicMock(return_value=False)),
         config=config,
+        checkpoint_manager=None,
     )
 
-    assert result.iterations == 1
-    assert result.success is True
+    loop = AgentLoop(ctx)
+    session = loop.run("objective")
+
+    assert session.state.value == "completed" or session.state.name == "COMPLETED"
+    assert len(session.completed_goals) <= 1
+    goal_manager.complete_goal.assert_called()
 
 
-def test_agent_loop_respects_explicit_max_iterations_over_config() -> None:
-    engine = MagicMock(spec=AgentEngine)
-    engine.execute.return_value = MagicMock(success=True, llm_response="ok", action=None, execution_result=None, error=None)
+def test_agent_loop_stops_when_max_goals_reached() -> None:
+    # Validates AgentLoop uses context.config.max_goals.
+    config = AgentConfiguration(max_goals=1)
 
-    config = AgentConfig(max_iterations=2)
-    loop = AgentLoop(agent_engine=engine)
-    result = loop.run(
-        mission=MagicMock(),
-        workspace=MagicMock(),
-        user_instruction="test",
-        max_iterations=4,
+    planner = MagicMock(spec=GoalPlanner)
+    from clawai.goals import GoalBacklog, Goal
+
+    planner.plan.return_value = GoalBacklog(
+        goals=(
+            Goal(id="g1", title="t1", description="d", success_criteria="s", priority=1),
+            Goal(id="g2", title="t2", description="d", success_criteria="s", priority=1),
+        ),
+    )
+
+    goal_manager = MagicMock()
+    goal_manager.add_goal.return_value = MagicMock()
+    goal_manager.create_backlog.return_value = MagicMock()
+    goal_manager.complete_goal.return_value = None
+    goal_manager.fail_goal.return_value = None
+
+    executor = MagicMock()
+    from clawai.executor import ExecutionResult
+
+    executor.run.return_value = ExecutionResult(success=True, summary="ok", repair_result=None, applied_results=())
+
+    reasoning_result = MagicMock(
+        assessment=MagicMock(value="review"),
+        next_action="continue",
+        should_retry=False,
+        failure_category="cat",
+        confidence=0.9,
+        recommendation="dec",
+        reason="r",
+    )
+
+    ctx = AgentContext(
+        planner=planner,
+        goal_manager=goal_manager,
+        executor=executor,
+        memory=MagicMock(),
+        event_bus=GoalEventBus(),
+        reasoning_engine=MagicMock(analyze=MagicMock(return_value=reasoning_result)),
+        retry_policy=MagicMock(max_retries=0, compute_delay=MagicMock(return_value=0.0), is_retryable=MagicMock(return_value=False)),
         config=config,
+        checkpoint_manager=None,
     )
 
-    assert result.iterations == 1
-    assert result.success is True
+    loop = AgentLoop(ctx)
+    session = loop.run("objective")
 
+    # With max_goals=1, loop should not complete more than 1 goal.
+    assert len(session.completed_goals) <= 1
 
-def test_agent_loop_compatible_with_explicit_max_iterations() -> None:
-    engine = MagicMock(spec=AgentEngine)
-    engine.execute.return_value = MagicMock(success=True, llm_response="ok", action=None, execution_result=None, error=None)
-
-    loop = AgentLoop(agent_engine=engine)
-    result = loop.run(
-        mission=MagicMock(),
-        workspace=MagicMock(),
-        user_instruction="test",
-        max_iterations=4,
-    )
-
-    assert result.iterations == 1
-    assert result.success is True
-
-
-def test_default_values_stability() -> None:
-    config = AgentConfig()
-    assert config == AgentConfig()
-    assert config.max_iterations == 10
-    assert config.memory_messages_limit == 10

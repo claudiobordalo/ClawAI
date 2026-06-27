@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from clawai.engineering import AbstractMemory
+from .reviewer import Reviewer
+from .decision_engine import DecisionEngine
+from .reflection_engine import ReflectionEngine
+from .failure_analysis import FailureAnalysis
 
 from .abstract_reasoning_engine import AbstractReasoningEngine
 from .cognitive_result import CognitiveResult
@@ -18,15 +21,17 @@ from .success_analysis import SuccessAnalysis
 class ReasoningEngine(AbstractReasoningEngine):
     def __init__(
         self,
-        reviewer: AbstractReviewer,
-        decision_engine: AbstractDecisionEngine,
-        reflection_engine: AbstractReflectionEngine,
-        failure_analysis: AbstractFailureAnalysis,
+        reviewer: Optional[AbstractReviewer] = None,
+        decision_engine: Optional[AbstractDecisionEngine] = None,
+        reflection_engine: Optional[AbstractReflectionEngine] = None,
+        failure_analysis: Optional[AbstractFailureAnalysis] = None,
     ) -> None:
-        self._reviewer = reviewer
-        self._decision_engine = decision_engine
-        self._reflection_engine = reflection_engine
-        self._failure_analysis = failure_analysis
+        # Canonical DI: dependencies are always held as injected collaborators.
+        # When not provided, use the production default concrete implementations.
+        self._reviewer = reviewer or Reviewer()
+        self._decision_engine = decision_engine or DecisionEngine()
+        self._reflection_engine = reflection_engine or ReflectionEngine(memory=None)
+        self._failure_analysis = failure_analysis or FailureAnalysis()
         self._review_count = 0
 
     @property
