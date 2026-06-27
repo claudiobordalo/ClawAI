@@ -1,0 +1,3 @@
+[run]
+omit =
+    clawai/agent/agent_engine.py

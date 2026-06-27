@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from clawai.dispatcher.dispatcher import Dispatcher
 from clawai.mission.agent_executor import AgentExecutor
 from clawai.mission.mission import Mission
 from clawai.mission.mission_state import MissionStepStatus, MissionStatus
 from clawai.mission.mission_step import MissionStep
 from clawai.resources.manager import ResourceManager
 from clawai.ai.router import ModelRouter
+
+if TYPE_CHECKING:
+    from clawai.dispatcher.dispatcher import Dispatcher
 
 
 class _ExecutorDispatcherAdapter:

@@ -1,4 +1,4 @@
-from .project_manager import ProjectManager
+from .services.project_manager import ProjectManager
 
 __all__ = [
     "ProjectManager",

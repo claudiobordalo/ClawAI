@@ -35,6 +35,70 @@ class FilesystemTool:
     def description(self) -> str:
         return "Filesystem operations with runtime result contract."
 
+    def describe(self) -> ToolDescriptor:
+        from clawai.tools.tool_descriptor import ArgumentDescriptor, ToolDescriptor
+
+        return ToolDescriptor(
+            name=self.name,
+            description=self.description,
+            arguments=(
+                ArgumentDescriptor(
+                    name="action",
+                    type="string",
+                    description="Ação a ser executada: read_file, write_file, append_file, delete_file, exists, mkdir, list_dir, copy, move, search, read_text",
+                    required=True,
+                ),
+                ArgumentDescriptor(
+                    name="path",
+                    type="string",
+                    description="Caminho do arquivo ou diretório",
+                    required=False,
+                ),
+                ArgumentDescriptor(
+                    name="content",
+                    type="string",
+                    description="Conteúdo para escrita (write_file / append_file)",
+                    required=False,
+                ),
+                ArgumentDescriptor(
+                    name="src",
+                    type="string",
+                    description="Caminho de origem (copy / move)",
+                    required=False,
+                ),
+                ArgumentDescriptor(
+                    name="dst",
+                    type="string",
+                    description="Caminho de destino (copy / move)",
+                    required=False,
+                ),
+                ArgumentDescriptor(
+                    name="pattern",
+                    type="string",
+                    description="Padrão glob para busca (search)",
+                    required=False,
+                ),
+                ArgumentDescriptor(
+                    name="max_chars",
+                    type="integer",
+                    description="Máximo de caracteres para leitura (read_text)",
+                    required=False,
+                ),
+                ArgumentDescriptor(
+                    name="root",
+                    type="string",
+                    description="Diretório raiz para busca (search)",
+                    required=False,
+                ),
+            ),
+            examples=(
+                '{"action":"read_file","path":"README.md"}',
+                '{"action":"write_file","path":"test.txt","content":"Hello"}',
+                '{"action":"search","root":".","pattern":"*.py"}',
+            ),
+            version="1.0.0",
+        )
+
     def __init__(self, *, ignore_engine: IgnoreEngine | None = None) -> None:
         self._ignore_engine = ignore_engine
 

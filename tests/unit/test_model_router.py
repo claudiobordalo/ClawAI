@@ -31,15 +31,14 @@ class FakeFactory:
     calls: list[tuple[Settings, str]] = []
     providers: list[FakeProvider] = []
 
-    @staticmethod
-    def create(
-        settings: Settings,
-        model: str,
-    ) -> FakeProvider:
+    @classmethod
+    def create(cls, provider: str, **kwargs) -> FakeProvider:
+        settings = kwargs.get("settings")
+        model = kwargs.get("model", "")
         FakeFactory.calls.append((settings, model))
-        provider = FakeProvider(model)
-        FakeFactory.providers.append(provider)
-        return provider
+        provider_obj = FakeProvider(model)
+        FakeFactory.providers.append(provider_obj)
+        return provider_obj
 
 
 def test_model_router_resolves_configured_roles() -> None:

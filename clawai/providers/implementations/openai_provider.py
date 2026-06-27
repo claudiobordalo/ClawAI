@@ -13,7 +13,9 @@ class OpenAIProvider(BaseProvider):
     def __init__(
         self,
         model: str = "gpt-5",
+        **kwargs,
     ) -> None:
+
 
         self._model = model
 

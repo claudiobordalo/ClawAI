@@ -1,6 +1,9 @@
 ﻿from clawai.ai import ModelRole
 from clawai.ai import ModelRouter
 from clawai.prompts import PromptEngine
+from clawai.providers.factory import ProviderFactory
+from clawai.providers.implementations.ollama_provider import OllamaProvider
+from clawai.providers.implementations.openai_provider import OpenAIProvider
 
 
 class Application:
@@ -9,6 +12,11 @@ class Application:
         self,
         model_router: ModelRouter | None = None,
     ) -> None:
+        # ProviderFactory é a fonte única da disponibilidade de providers.
+        # A registration acontece durante o bootstrap da Application, antes
+        # de qualquer chamada a ModelRouter.provider_for().
+        ProviderFactory.register_provider("ollama", OllamaProvider)
+        ProviderFactory.register_provider("openai", OpenAIProvider)
 
         self._model_router = model_router or ModelRouter()
 

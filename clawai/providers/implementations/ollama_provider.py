@@ -14,7 +14,9 @@ class OllamaProvider(BaseProvider):
         self,
         model: str | None = None,
         host: str = "http://localhost:11434",
+        **kwargs,
     ) -> None:
+
 
         self._model = (
             model

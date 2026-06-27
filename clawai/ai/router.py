@@ -25,10 +25,12 @@ class ModelRouter:
         self,
         settings: Settings | None = None,
         provider_factory: type[ProviderFactory] = ProviderFactory,
+        provider: str = "ollama",
     ) -> None:
 
         self._settings = settings or Settings()
         self._provider_factory = provider_factory
+        self._provider = provider
 
     def model_for(
         self,
@@ -52,6 +54,7 @@ class ModelRouter:
         role: ModelRole | str,
     ) -> BaseProvider:
         return self._provider_factory.create(
+            provider=self._provider,
             settings=self._settings,
             model=self.model_for(role),
         )

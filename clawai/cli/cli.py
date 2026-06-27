@@ -17,7 +17,7 @@ class ChatSession:
     ) -> None:
 
         self.project = project
-        self.provider = ProviderFactory.create()
+        self.provider = ProviderFactory.create(provider="ollama")
         self.engine = PromptEngine(self.provider)
         self.locator = FileLocator()
         self.extractor = CodeExtractor()

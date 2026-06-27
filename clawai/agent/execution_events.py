@@ -1,0 +1,17 @@
+from __future__ import annotations
+
+SESSION_STARTED = "agent.session_started"
+SESSION_FINISHED = "agent.session_finished"
+GOAL_STARTED = "agent.goal_started"
+GOAL_FINISHED = "agent.goal_finished"
+GOAL_FAILED = "agent.goal_failed"
+GOAL_RETRIED = "agent.goal_retried"
+PLANNER_STARTED = "agent.planner_started"
+PLANNER_FINISHED = "agent.planner_finished"
+EXECUTOR_STARTED = "agent.executor_started"
+EXECUTOR_FINISHED = "agent.executor_finished"
+SESSION_CANCELLED = "agent.session_cancelled"
+COGNITIVE_DECISION = "cognition.decision"
+COGNITIVE_REVIEW = "cognition.review"
+REPLAN_STARTED = "cognition.replan_started"
+REPLAN_COMPLETED = "cognition.replan_completed"

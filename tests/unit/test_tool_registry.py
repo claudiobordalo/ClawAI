@@ -28,6 +28,10 @@ class DummyTool(Tool):
     def health(self) -> dict[str, Any]:
         return {"ok": True}
 
+    def describe(self) -> ToolDescriptor:
+        from clawai.tools.tool_descriptor import ToolDescriptor
+        return ToolDescriptor(name=self._name, description="dummy")
+
 
 def _assert_contract(res: dict[str, Any]) -> None:
     assert set(res.keys()) == {"success", "result", "error", "duration_ms"}
