@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import {
-    runAutoImplement,
+    getAutoImplementStatus,
     sendChat,
+    startAutoImplement,
+    stopAutoImplement,
     type AutoImplementReport,
+    type AutoImplementSession,
     type ChatReply
 } from "./api";
 
@@ -50,9 +53,12 @@ export default function ChatPanel() {
     const [autoIterations, setAutoIterations] = useState(3);
     const [autoRunning, setAutoRunning] = useState(false);
     const [autoReport, setAutoReport] = useState<AutoImplementReport | null>(null);
+    const [autoSession, setAutoSession] = useState<AutoImplementSession | null>(null);
     const [autoError, setAutoError] = useState("");
 
     const timerRef = useRef<number | null>(null);
+    const pollRef = useRef<number | null>(null);
+    const pollingRef = useRef(false);
     const startedAtRef = useRef(0);
     const nextIdRef = useRef(2);
 
@@ -60,6 +66,9 @@ export default function ChatPanel() {
         return () => {
             if (timerRef.current !== null) {
                 window.clearInterval(timerRef.current);
+            }
+            if (pollRef.current !== null) {
+                window.clearInterval(pollRef.current);
             }
         };
     }, []);
@@ -69,6 +78,18 @@ export default function ChatPanel() {
             window.clearInterval(timerRef.current);
             timerRef.current = null;
         }
+    }
+
+    function stopPolling() {
+        if (pollRef.current !== null) {
+            window.clearInterval(pollRef.current);
+            pollRef.current = null;
+        }
+        pollingRef.current = false;
+    }
+
+    function isTerminalStatus(status?: string) {
+        return status === "success" || status === "failed" || status === "cancelled" || status === "cancel_requested";
     }
 
     async function send() {
@@ -156,6 +177,30 @@ export default function ChatPanel() {
         }
     }
 
+    async function refreshAutoSession(runId: string) {
+        if (pollingRef.current) {
+            return;
+        }
+
+        pollingRef.current = true;
+
+        try {
+            const latest = await getAutoImplementStatus(runId);
+            setAutoSession(latest);
+
+            if (isTerminalStatus(latest.status)) {
+                stopPolling();
+                setAutoRunning(false);
+                setAutoReport(latest.result ?? null);
+            }
+        } catch (error) {
+            console.error("Falha ao atualizar a sessão automática.", error);
+        } finally {
+            pollingRef.current = false;
+        }
+    }
+
+
     async function runAuto() {
         const objective = autoObjective.trim();
 
@@ -165,17 +210,25 @@ export default function ChatPanel() {
 
         setAutoError("");
         setAutoReport(null);
+        setAutoSession(null);
         setAutoRunning(true);
 
         try {
-            const report = await runAutoImplement(
+            const session = await startAutoImplement(
                 objective,
                 autoTestCommand.trim() || "uv run python -m pytest -q",
                 autoIterations,
                 15
             );
 
-            setAutoReport(report);
+            setAutoSession(session);
+
+            stopPolling();
+            pollRef.current = window.setInterval(() => {
+                void refreshAutoSession(session.run_id);
+            }, 1000);
+
+            void refreshAutoSession(session.run_id);
         } catch (error) {
             const message =
                 error instanceof Error
@@ -184,8 +237,22 @@ export default function ChatPanel() {
 
             console.error(message, error);
             setAutoError(message);
-        } finally {
             setAutoRunning(false);
+        }
+    }
+
+    async function cancelAuto() {
+        if (!autoSession || isTerminalStatus(autoSession.status)) {
+            return;
+        }
+
+        try {
+            const session = await stopAutoImplement(autoSession.run_id);
+            setAutoSession(session);
+            setAutoRunning(false);
+            stopPolling();
+        } catch (error) {
+            console.error("Falha ao cancelar a auto-implementação.", error);
         }
     }
 
@@ -376,18 +443,33 @@ export default function ChatPanel() {
                         />
                     </div>
 
-                    <button
-                        onClick={() => void runAuto()}
-                        disabled={autoRunning || !autoObjective.trim()}
-                        style={{
-                            width: "100%",
-                            height: 36,
-                            cursor: autoRunning ? "wait" : "pointer",
-                            opacity: autoRunning || !autoObjective.trim() ? 0.7 : 1
-                        }}
-                    >
-                        {autoRunning ? "Executando..." : "Auto implementar"}
-                    </button>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                        <button
+                            onClick={() => void runAuto()}
+                            disabled={autoRunning || !autoObjective.trim()}
+                            style={{
+                                width: "100%",
+                                height: 36,
+                                cursor: autoRunning ? "wait" : "pointer",
+                                opacity: autoRunning || !autoObjective.trim() ? 0.7 : 1
+                            }}
+                        >
+                            {autoRunning ? "Executando..." : "Auto implementar"}
+                        </button>
+
+                        <button
+                            onClick={() => void cancelAuto()}
+                            disabled={!autoSession || !autoRunning}
+                            style={{
+                                width: "100%",
+                                height: 36,
+                                cursor: !autoSession || !autoRunning ? "not-allowed" : "pointer",
+                                opacity: !autoSession || !autoRunning ? 0.7 : 1
+                            }}
+                        >
+                            Cancelar
+                        </button>
+                    </div>
 
                     {autoError ? (
                         <div
@@ -400,6 +482,96 @@ export default function ChatPanel() {
                             {autoError}
                         </div>
                     ) : null}
+
+                    {autoSession ? (
+                        <div
+                            style={{
+                                fontSize: 11,
+                                color: "#9aa0a6",
+                                lineHeight: 1.45,
+                                maxHeight: 260,
+                                overflow: "auto",
+                                border: "1px solid #333",
+                                borderRadius: 6,
+                                padding: 10,
+                                background: "#1f1f1f"
+                            }}
+                        >
+                            <div>
+                                Sessão: {autoSession.run_id.slice(0, 8)} · Status: {autoSession.status} · Iteração: {autoSession.current_iteration}/{autoSession.max_iterations}
+                            </div>
+                            <div>
+                                Objetivo: {autoSession.objective}
+                            </div>
+                            <div>
+                                Teste: {autoSession.test_command}
+                            </div>
+                            <div>
+                                Tempo: {formatTime(autoSession.duration_ms)}
+                            </div>
+                            {autoSession.error ? (
+                                <div style={{ color: "#ff8a80", marginTop: 4 }}>
+                                    Erro: {autoSession.error}
+                                </div>
+                            ) : null}
+                            {autoSession.summary ? (
+                                <div style={{ marginTop: 4 }}>
+                                    Resumo: {autoSession.summary}
+                                </div>
+                            ) : null}
+
+                            <div style={{ marginTop: 8 }}>
+                                <strong>Eventos</strong>
+                            </div>
+
+                            {autoSession.events.length ? (
+                                autoSession.events.map(event => (
+                                    <details
+                                        key={event.index}
+                                        style={{
+                                            marginTop: 8,
+                                            border: "1px solid #333",
+                                            borderRadius: 6,
+                                            padding: 8,
+                                            background: "#242424"
+                                        }}
+                                    >
+                                        <summary style={{ cursor: "pointer" }}>
+                                            #{event.index} · {event.step} · {event.status}
+                                        </summary>
+                                        <div style={{ marginTop: 8 }}>
+                                            <div>{event.message}</div>
+                                            <div>Iteração: {event.iteration ?? "-"}</div>
+                                            <div>Tempo: {formatTime(event.elapsed_ms ?? undefined)}</div>
+                                            {event.files.length ? (
+                                                <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+                                                    Arquivos: {event.files.join(", ")}
+                                                </div>
+                                            ) : null}
+                                            {event.summary ? (
+                                                <div style={{ marginTop: 6, whiteSpace: "pre-wrap" }}>
+                                                    Resumo: {event.summary}
+                                                </div>
+                                            ) : null}
+                                            {event.test ? (
+                                                <div style={{ marginTop: 6 }}>
+                                                    Teste: {event.test.success ? "ok" : "falhou"} · {formatTime(event.test.duration_ms)}
+                                                </div>
+                                            ) : null}
+                                            {event.error ? (
+                                                <div style={{ marginTop: 6, color: "#ff8a80", whiteSpace: "pre-wrap" }}>
+                                                    {event.error}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    </details>
+                                ))
+                            ) : (
+                                <div style={{ marginTop: 6 }}>Aguardando progresso...</div>
+                            )}
+                        </div>
+                    ) : null}
+
 
                     {autoReport ? (
                         <div

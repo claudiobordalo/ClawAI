@@ -1,0 +1,157 @@
+diff a/frontend/src/ChatPanel.tsx b/frontend/src/ChatPanel.tsx	(rejected hunks)
+@@ -1,8 +1,11 @@
+ import { useEffect, useRef, useState } from "react";
+ import {
+-    runAutoImplement,
++    getAutoImplementStatus,
+     sendChat,
++    startAutoImplement,
++    stopAutoImplement,
+     type AutoImplementReport,
++    type AutoImplementSession,
+     type ChatReply
+ } from "./api";
+ 
+@@ -50,9 +53,12 @@ export default function ChatPanel() {
+     const [autoIterations, setAutoIterations] = useState(3);
+     const [autoRunning, setAutoRunning] = useState(false);
+     const [autoReport, setAutoReport] = useState<AutoImplementReport | null>(null);
++    const [autoSession, setAutoSession] = useState<AutoImplementSession | null>(null);
+     const [autoError, setAutoError] = useState("");
+ 
+     const timerRef = useRef<number | null>(null);
++    const pollRef = useRef<number | null>(null);
++    const pollingRef = useRef(false);
+     const startedAtRef = useRef(0);
+     const nextIdRef = useRef(2);
+ 
+@@ -61,6 +67,9 @@ export default function ChatPanel() {
+             if (timerRef.current !== null) {
+                 window.clearInterval(timerRef.current);
+             }
++            if (pollRef.current !== null) {
++                window.clearInterval(pollRef.current);
++            }
+         };
+     }, []);
+ 
+@@ -71,6 +80,18 @@ export default function ChatPanel() {
+         }
+     }
+ 
++    function stopPolling() {
++        if (pollRef.current !== null) {
++            window.clearInterval(pollRef.current);
++            pollRef.current = null;
++        }
++        pollingRef.current = false;
++    }
++
++    function isTerminalStatus(status?: string) {
++        return status === "success" || status === "failed" || status === "cancelled" || status === "cancel_requested";
++    }
++
+     async function send() {
+         const text = prompt.trim();
+ 
+@@ -165,17 +209,25 @@ export default function ChatPanel() {
+ 
+         setAutoError("");
+         setAutoReport(null);
++        setAutoSession(null);
+         setAutoRunning(true);
+ 
+         try {
+-            const report = await runAutoImplement(
++            const session = await startAutoImplement(
+                 objective,
+                 autoTestCommand.trim() || "uv run python -m pytest -q",
+                 autoIterations,
+                 15
+             );
+ 
+-            setAutoReport(report);
++            setAutoSession(session);
++
++            stopPolling();
++            pollRef.current = window.setInterval(() => {
++                void refreshAutoSession(session.run_id);
++            }, 1000);
++
++            void refreshAutoSession(session.run_id);
+         } catch (error) {
+             const message =
+                 error instanceof Error
+@@ -184,11 +236,25 @@ export default function ChatPanel() {
+ 
+             console.error(message, error);
+             setAutoError(message);
+-        } finally {
+             setAutoRunning(false);
+         }
+     }
+ 
++    async function cancelAuto() {
++        if (!autoSession || isTerminalStatus(autoSession.status)) {
++            return;
++        }
++
++        try {
++            const session = await stopAutoImplement(autoSession.run_id);
++            setAutoSession(session);
++            setAutoRunning(false);
++            stopPolling();
++        } catch (error) {
++            console.error("Falha ao cancelar a auto-implementação.", error);
++        }
++    }
++
+     return (
+         <div
+             style={{
+@@ -376,18 +442,33 @@ export default function ChatPanel() {
+                         />
+                     </div>
+ 
+-                    <button
+-                        onClick={() => void runAuto()}
+-                        disabled={autoRunning || !autoObjective.trim()}
+-                        style={{
+-                            width: "100%",
+-                            height: 36,
+-                            cursor: autoRunning ? "wait" : "pointer",
+-                            opacity: autoRunning || !autoObjective.trim() ? 0.7 : 1
+-                        }}
+-                    >
+-                        {autoRunning ? "Executando..." : "Auto implementar"}
+-                    </button>
++                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
++                        <button
++                            onClick={() => void runAuto()}
++                            disabled={autoRunning || !autoObjective.trim()}
++                            style={{
++                                width: "100%",
++                                height: 36,
++                                cursor: autoRunning ? "wait" : "pointer",
++                                opacity: autoRunning || !autoObjective.trim() ? 0.7 : 1
++                            }}
++                        >
++                            {autoRunning ? "Executando..." : "Auto implementar"}
++                        </button>
++
++                        <button
++                            onClick={() => void cancelAuto()}
++                            disabled={!autoSession || !autoRunning}
++                            style={{
++                                width: "100%",
++                                height: 36,
++                                cursor: !autoSession || !autoRunning ? "not-allowed" : "pointer",
++                                opacity: !autoSession || !autoRunning ? 0.7 : 1
++                            }}
++                        >
++                            Cancelar
++                        </button>
++                    </div>
+ 
+                     {autoError ? (
+                         <div

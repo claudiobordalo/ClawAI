@@ -1,0 +1,99 @@
+diff a/frontend/src/api.ts b/frontend/src/api.ts	(rejected hunks)
+@@ -1,4 +1,4 @@
+-﻿import axios from "axios";
++import axios from "axios";
+ import type { TreeNode } from "./tree";
+ 
+ const api = axios.create({
+@@ -65,6 +65,37 @@ export type AutoImplementReport = {
+     duration_ms: number;
+ };
+ 
++export type AutoImplementEvent = {
++    index: number;
++    step: string;
++    status: string;
++    message: string;
++    iteration?: number | null;
++    elapsed_ms?: number | null;
++    files: string[];
++    summary?: string | null;
++    test?: AutoImplementTestReport | null;
++    error?: string | null;
++};
++
++export type AutoImplementSession = {
++    run_id: string;
++    objective: string;
++    test_command: string;
++    max_iterations: number;
++    max_files: number;
++    status: string;
++    current_iteration: number;
++    started_at?: string | null;
++    finished_at?: string | null;
++    duration_ms: number;
++    cancel_requested: boolean;
++    error?: string | null;
++    summary: string;
++    events: AutoImplementEvent[];
++    result?: AutoImplementReport | null;
++};
++
+ export async function sendChat(prompt: string): Promise<ChatReply> {
+     const response = await api.post("/chat", {
+         prompt
+@@ -93,6 +124,46 @@ export async function runAutoImplement(
+     return response.data as AutoImplementReport;
+ }
+ 
++export async function startAutoImplement(
++    objective: string,
++    testCommand = "uv run python -m pytest -q",
++    maxIterations = 3,
++    maxFiles = 15
++): Promise<AutoImplementSession> {
++    const response = await api.post("/auto/implement/start", {
++        objective,
++        test_command: testCommand,
++        max_iterations: maxIterations,
++        max_files: maxFiles
++    });
++
++    return response.data as AutoImplementSession;
++}
++
++export async function getAutoImplementStatus(
++    runId: string
++): Promise<AutoImplementSession> {
++    const response = await api.get(`/auto/implement/status/${runId}`);
++    return response.data as AutoImplementSession;
++}
++
++export async function getAutoImplementEvents(
++    runId: string,
++    after = 0
++): Promise<AutoImplementEvent[]> {
++    const response = await api.get(`/auto/implement/events/${runId}`, {
++        params: { after }
++    });
++    return response.data as AutoImplementEvent[];
++}
++
++export async function stopAutoImplement(
++    runId: string
++): Promise<AutoImplementSession> {
++    const response = await api.post(`/auto/implement/stop/${runId}`);
++    return response.data as AutoImplementSession;
++}
++
+ export async function loadTree(path = ""): Promise<TreeNode[]> {
+     const response = await api.get("/tree", {
+         params: path ? { path } : undefined
+@@ -125,4 +196,4 @@ export async function saveFile(
+             content
+         }
+     );
+-}
+\ No newline at end of file
++}

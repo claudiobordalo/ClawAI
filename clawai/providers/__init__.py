@@ -1,7 +1,10 @@
 from .factory import ProviderFactory
 
 from .implementations.openai_provider import OpenAIProvider
-from .implementations.ollama_provider import OllamaProvider
+try:
+    from .implementations.ollama_provider import OllamaProvider
+except ModuleNotFoundError:
+    OllamaProvider = None
 
 ProviderFactory.register_provider(
     "openai",

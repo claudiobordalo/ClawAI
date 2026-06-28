@@ -8,6 +8,7 @@ _ALLOWED = {"passed", "failed", "skipped", "error"}
 
 @dataclass(frozen=True)
 class TestCaseResult:
+    __test__ = False
     """Immutable result of a single test case."""
     name: str
     status: str  # one of: passed, failed, skipped, error

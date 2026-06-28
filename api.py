@@ -67,6 +67,20 @@ class AutoImplementRequest(BaseModel):
     max_files: int = Field(default=15, ge=1, le=20)
 
 
+class AutoImplementStatusRequest(BaseModel):
+    objective: str | None = None
+    test_command: str = "uv run python -m pytest -q"
+    max_iterations: int = Field(default=3, ge=1, le=5)
+    max_files: int = Field(default=15, ge=1, le=20)
+
+
+class AutoImplementStatusRequest(BaseModel):
+    objective: str | None = None
+    test_command: str = "uv run python -m pytest -q"
+    max_iterations: int = Field(default=3, ge=1, le=5)
+    max_files: int = Field(default=15, ge=1, le=20)
+
+
 @app.get("/health")
 def health():
     return {
@@ -104,6 +118,55 @@ def auto_implement_route(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/api/auto/implement/start")
+def auto_implement_start(
+    request: AutoImplementRequest,
+):
+    try:
+        session = auto_implement.start(
+            objective=request.objective,
+            test_command=request.test_command,
+            max_iterations=request.max_iterations,
+            max_files=request.max_files,
+        )
+        return asdict(session)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/api/auto/implement/status/{run_id}")
+def auto_implement_status(
+    run_id: str,
+):
+    try:
+        return asdict(auto_implement.get_status(run_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Run not found") from exc
+
+
+@app.get("/api/auto/implement/events/{run_id}")
+def auto_implement_events(
+    run_id: str,
+    after: int = 0,
+):
+    try:
+        return [asdict(event) for event in auto_implement.list_events(run_id, after=after)]
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Run not found") from exc
+
+
+@app.post("/api/auto/implement/stop/{run_id}")
+def auto_implement_stop(
+    run_id: str,
+):
+    try:
+        return asdict(auto_implement.stop(run_id))
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Run not found") from exc
 
 
 @app.post("/api/chat/image")

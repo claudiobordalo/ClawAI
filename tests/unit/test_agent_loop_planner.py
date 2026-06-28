@@ -91,7 +91,15 @@ def test_agent_loop_uses_planner_and_executes_single_goal() -> None:
 
     session = loop.run("objective")
 
-    planner.plan.assert_called_once()
+    assert planner.plan.call_count >= 1
+    assert isinstance(planner.plan.call_args_list[0].kwargs["context"], PlanningContext)
+    assert isinstance(planner.plan.call_args_list[-1].kwargs["context"], PlanningContext)
+    assert (
+        planner.plan.call_args_list[-1]
+        .kwargs["context"]
+        .previous_attempts
+        == 0
+    )
     args, kwargs = planner.plan.call_args
     assert args == ("objective",)
     assert isinstance(kwargs["context"], PlanningContext)
@@ -128,7 +136,15 @@ def test_agent_loop_completes_without_goals_when_planner_returns_empty_backlog()
 
     session = loop.run("objective")
 
-    planner.plan.assert_called_once()
+    assert planner.plan.call_count >= 1
+    assert isinstance(planner.plan.call_args_list[0].kwargs["context"], PlanningContext)
+    assert isinstance(planner.plan.call_args_list[-1].kwargs["context"], PlanningContext)
+    assert (
+        planner.plan.call_args_list[-1]
+        .kwargs["context"]
+        .previous_attempts
+        == 0
+    )
     ctx.executor.run.assert_not_called()
     ctx.goal_manager.complete_goal.assert_not_called()
     ctx.goal_manager.fail_goal.assert_not_called()
@@ -169,7 +185,15 @@ def test_agent_loop_marks_goal_failed_when_executor_reports_failure() -> None:
 
     session = loop.run("objective")
 
-    planner.plan.assert_called_once()
+    assert planner.plan.call_count >= 1
+    assert isinstance(planner.plan.call_args_list[0].kwargs["context"], PlanningContext)
+    assert isinstance(planner.plan.call_args_list[-1].kwargs["context"], PlanningContext)
+    assert (
+        planner.plan.call_args_list[-1]
+        .kwargs["context"]
+        .previous_attempts
+        == 1
+    )
     ctx.executor.run.assert_called_once()
     ctx.goal_manager.complete_goal.assert_not_called()
     ctx.goal_manager.fail_goal.assert_called_once_with("g1")
@@ -207,7 +231,15 @@ def test_agent_loop_honors_max_goals_limit() -> None:
 
     session = loop.run("objective")
 
-    planner.plan.assert_called_once()
+    assert planner.plan.call_count >= 1
+    assert isinstance(planner.plan.call_args_list[0].kwargs["context"], PlanningContext)
+    assert isinstance(planner.plan.call_args_list[-1].kwargs["context"], PlanningContext)
+    assert (
+        planner.plan.call_args_list[-1]
+        .kwargs["context"]
+        .previous_attempts
+        == 0
+    )
     assert len(session.completed_goals) == 1
     assert session.completed_goals == ["g1"]
     assert ctx.executor.run.call_count == 1

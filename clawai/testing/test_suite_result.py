@@ -8,6 +8,7 @@ from .test_case_result import TestCaseResult
 
 @dataclass(frozen=True)
 class TestSuiteResult:
+    __test__ = False
     """Immutable structured result of a test suite execution."""
     success: bool
     total: int

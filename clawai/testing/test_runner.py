@@ -14,6 +14,7 @@ from .test_suite_result import TestSuiteResult
 
 @dataclass(frozen=True)
 class _RunEnvelope:
+    __test__ = False
     stdout: str
     stderr: str
     returncode: int
@@ -21,6 +22,7 @@ class _RunEnvelope:
 
 
 class TestRunner:
+    __test__ = False
     """Executes a test suite command and parses results.
 
     Responsibilities:

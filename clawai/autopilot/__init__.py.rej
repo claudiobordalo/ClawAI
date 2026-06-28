@@ -1,0 +1,27 @@
+diff a/clawai/autopilot/__init__.py b/clawai/autopilot/__init__.py	(rejected hunks)
+@@ -1,7 +1,9 @@
+ from .auto_implement_service import (
+     AutoImplementChange,
++    AutoImplementEvent,
+     AutoImplementIteration,
+-    AutoImplementReport,
++    AutoImplementResult,
++    AutoImplementSession,
+     AutoImplementService,
+     AutoImplementTestReport,
+     auto_implement,
+@@ -9,9 +11,11 @@ from .auto_implement_service import (
+ 
+ __all__ = [
+     "AutoImplementChange",
++    "AutoImplementEvent",
+     "AutoImplementIteration",
+-    "AutoImplementReport",
++    "AutoImplementResult",
++    "AutoImplementSession",
+     "AutoImplementService",
+     "AutoImplementTestReport",
+     "auto_implement",
+-]
+\ No newline at end of file
++]

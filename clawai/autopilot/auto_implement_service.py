@@ -5,10 +5,11 @@ import re
 import shutil
 import subprocess
 import time
-from dataclasses import dataclass, field
-from datetime import datetime
+import uuid
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
+from threading import Lock, Thread
 from typing import Iterable
 
 from clawai.ai.router import AIRouter, ModelRole
@@ -102,12 +103,62 @@ class AutoImplementResult:
     duration_ms: float
 
 
+@dataclass(slots=True, frozen=True)
+class AutoImplementEvent:
+    index: int
+    step: str
+    status: str
+    message: str
+    iteration: int | None = None
+    elapsed_ms: float | None = None
+    files: list[str] = field(default_factory=list)
+    summary: str | None = None
+    test: AutoImplementTestReport | None = None
+    error: str | None = None
+
+
+@dataclass(slots=True)
+class AutoImplementSession:
+    run_id: str
+    objective: str
+    test_command: str
+    max_iterations: int
+    max_files: int
+    status: str = "pending"
+    current_iteration: int = 0
+    started_at: str = ""
+    finished_at: str | None = None
+    duration_ms: float = 0.0
+    cancel_requested: bool = False
+    error: str | None = None
+    summary: str = ""
+    events: list[AutoImplementEvent] = field(default_factory=list)
+    result: AutoImplementResult | None = None
+
+
+@dataclass(slots=True)
+class _RunContext:
+    objective: str
+    test_command: str
+    max_iterations: int
+    max_files: int
+    run_id: str
+    started_at: float
+    session: AutoImplementSession | None = None
+    events: list[AutoImplementEvent] = field(default_factory=list)
+    stop_requested: bool = False
+    event_index: int = 0
+
+
 class AutoImplementService:
     def __init__(self) -> None:
         self.router = AIRouter()
         self.provider = getattr(self.router, "_provider", "ollama")
         self.model = self.router.model_for(ModelRole.CODER)
         self._lock = Lock()
+        self._sessions_lock = Lock()
+        self._sessions: dict[str, AutoImplementSession] = {}
+        self._threads: dict[str, Thread] = {}
 
     def implement(
         self,
@@ -116,6 +167,75 @@ class AutoImplementService:
         max_iterations: int = 3,
         max_files: int = 15,
     ) -> AutoImplementResult:
+        ctx = self._make_context(
+            objective=objective,
+            test_command=test_command,
+            max_iterations=max_iterations,
+            max_files=max_files,
+        )
+
+        with self._lock:
+            result = self._execute(ctx)
+        return result
+
+    def start(
+        self,
+        objective: str,
+        test_command: str = "uv run python -m pytest -q",
+        max_iterations: int = 3,
+        max_files: int = 15,
+    ) -> AutoImplementSession:
+        ctx = self._make_context(
+            objective=objective,
+            test_command=test_command,
+            max_iterations=max_iterations,
+            max_files=max_files,
+            session=True,
+        )
+
+        if ctx.session is None:
+            raise RuntimeError("session creation failed")
+
+        with self._sessions_lock:
+            self._sessions[ctx.run_id] = ctx.session
+
+        thread = Thread(target=self._run_background, args=(ctx,), daemon=True)
+        with self._sessions_lock:
+            self._threads[ctx.run_id] = thread
+        thread.start()
+        return self.get_status(ctx.run_id)
+
+    def get_status(self, run_id: str) -> AutoImplementSession:
+        with self._sessions_lock:
+            session = self._sessions.get(run_id)
+        if session is None:
+            raise KeyError(run_id)
+        return session
+
+    def list_events(self, run_id: str, after: int = 0) -> list[AutoImplementEvent]:
+        session = self.get_status(run_id)
+        if after <= 0:
+            return list(session.events)
+        return [event for event in session.events if event.index > after]
+
+    def stop(self, run_id: str) -> AutoImplementSession:
+        with self._sessions_lock:
+            session = self._sessions.get(run_id)
+        if session is None:
+            raise KeyError(run_id)
+        session.cancel_requested = True
+        session.status = "cancel_requested"
+        return session
+
+    def _make_context(
+        self,
+        *,
+        objective: str,
+        test_command: str,
+        max_iterations: int,
+        max_files: int,
+        session: bool = False,
+    ) -> _RunContext:
         objective = objective.strip()
 
         if not objective:
@@ -123,112 +243,280 @@ class AutoImplementService:
 
         max_iterations = max(1, min(int(max_iterations), 5))
         max_files = max(1, min(int(max_files), 20))
+        run_id = uuid.uuid4().hex
+        started_at = time.perf_counter()
+        session_obj = None
 
-        with self._lock:
-            started = time.perf_counter()
-            iterations: list[AutoImplementIteration] = []
-            seen_candidates: set[str] = set()
-            previous_test: AutoImplementTestReport | None = None
-            previous_summary = ""
-            final_summary = "No changes applied"
-            run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            for iteration in range(1, max_iterations + 1):
-                candidate_paths = self._select_candidate_files(
-                    objective=objective,
-                    previous_test=previous_test,
-                    previous_summary=previous_summary,
-                    max_files=max_files,
-                )
-
-                for path in candidate_paths:
-                    seen_candidates.add(path.relative_to(ROOT).as_posix())
-
-                prompt = self._build_prompt(
-                    objective=objective,
-                    candidate_paths=candidate_paths,
-                    iteration=iteration,
-                    max_iterations=max_iterations,
-                    previous_test=previous_test,
-                    previous_summary=previous_summary,
-                )
-
-                raw = self.router.ask(
-                    prompt,
-                    role=ModelRole.CODER,
-                    system_prompt=self._system_prompt(),
-                )
-
-                plan = self._parse_plan(raw)
-                summary = str(plan.get("summary", "")).strip() or f"Iteration {iteration}"
-                final_summary = summary
-
-                changes = self._apply_changes(
-                    plan.get("changes", []),
-                    run_id=run_id,
-                    iteration=iteration,
-                )
-
-                test_report: AutoImplementTestReport | None = None
-                if test_command.strip():
-                    test_report = self._run_tests(test_command)
-
-                iterations.append(
-                    AutoImplementIteration(
-                        iteration=iteration,
-                        summary=summary,
-                        changes=changes,
-                        test=test_report,
-                    )
-                )
-
-                previous_test = test_report
-                previous_summary = self._summarize_iteration(summary, changes, test_report)
-
-                if test_report and test_report.success:
-                    break
-
-            duration_ms = (time.perf_counter() - started) * 1000
-            success = bool(
-                iterations
-                and iterations[-1].test is not None
-                and iterations[-1].test.success
-            )
-
-            return AutoImplementResult(
+        if session:
+            session_obj = AutoImplementSession(
+                run_id=run_id,
                 objective=objective,
-                summary=final_summary,
-                provider=self.provider,
-                model=self.model,
-                candidate_files=sorted(seen_candidates),
-                iterations=iterations,
-                success=success,
                 test_command=test_command,
-                duration_ms=duration_ms,
+                max_iterations=max_iterations,
+                max_files=max_files,
+                status="running",
+                current_iteration=0,
+                started_at=datetime.now(timezone.utc).isoformat(),
             )
+
+        return _RunContext(
+            objective=objective,
+            test_command=test_command,
+            max_iterations=max_iterations,
+            max_files=max_files,
+            run_id=run_id,
+            started_at=started_at,
+            session=session_obj,
+        )
+
+    def _run_background(self, ctx: _RunContext) -> None:
+        if ctx.session is None:
+            return
+        try:
+            with self._lock:
+                result = self._execute(ctx)
+            if ctx.session.cancel_requested:
+                status = "cancelled"
+            else:
+                status = "success" if result.success else "failed"
+            self._finalize_session(ctx.session, result=result, status=status)
+        except Exception as exc:
+            self._finalize_session(ctx.session, error=str(exc), status="failed")
+
+    def _finalize_session(
+        self,
+        session: AutoImplementSession,
+        *,
+        result: AutoImplementResult | None = None,
+        error: str | None = None,
+        status: str,
+    ) -> None:
+        session.result = result
+        session.error = error
+        session.status = status
+        session.finished_at = datetime.now(timezone.utc).isoformat()
+        session.duration_ms = result.duration_ms if result else session.duration_ms
+        if result is not None:
+            session.summary = result.summary
+        if error and not session.summary:
+            session.summary = error
+
+    def _emit(
+        self,
+        ctx: _RunContext,
+        *,
+        step: str,
+        status: str,
+        message: str,
+        iteration: int | None = None,
+        files: Iterable[str] = (),
+        summary: str | None = None,
+        test: AutoImplementTestReport | None = None,
+        error: str | None = None,
+    ) -> None:
+        ctx.event_index += 1
+        event = AutoImplementEvent(
+            index=ctx.event_index,
+            step=step,
+            status=status,
+            message=message,
+            iteration=iteration,
+            elapsed_ms=(time.perf_counter() - ctx.started_at) * 1000,
+            files=list(files),
+            summary=summary,
+            test=test,
+            error=error,
+        )
+        ctx.events.append(event)
+        if ctx.session is not None:
+            ctx.session.events.append(event)
+            if iteration is not None:
+                ctx.session.current_iteration = max(ctx.session.current_iteration, iteration)
+            if summary:
+                ctx.session.summary = summary
+
+    def _execute(self, ctx: _RunContext) -> AutoImplementResult:
+        iterations: list[AutoImplementIteration] = []
+        seen_candidates: set[str] = set()
+        previous_test: AutoImplementTestReport | None = None
+        previous_summary = ""
+        final_summary = "No changes applied"
+
+        self._emit(
+            ctx,
+            step="plan",
+            status="running",
+            message="Analisando a tarefa e preparando a primeira iteração.",
+        )
+
+        for iteration in range(1, ctx.max_iterations + 1):
+            if ctx.session is not None and ctx.session.cancel_requested:
+                self._emit(
+                    ctx,
+                    step="cancelled",
+                    status="cancelled",
+                    message="A execução foi cancelada antes da próxima iteração.",
+                    iteration=iteration,
+                )
+                break
+
+            candidate_paths = self._select_candidate_files(
+                objective=ctx.objective,
+                previous_test=previous_test,
+                previous_summary=previous_summary,
+                max_files=ctx.max_files,
+            )
+
+            candidate_rel = [path.relative_to(ROOT).as_posix() for path in candidate_paths]
+            for path in candidate_rel:
+                seen_candidates.add(path)
+
+            self._emit(
+                ctx,
+                step="select_files",
+                status="running",
+                message="Selecionando arquivos relevantes para a próxima alteração.",
+                iteration=iteration,
+                files=candidate_rel,
+            )
+
+            prompt = self._build_prompt(
+                objective=ctx.objective,
+                candidate_paths=candidate_paths,
+                iteration=iteration,
+                max_iterations=ctx.max_iterations,
+                previous_test=previous_test,
+                previous_summary=previous_summary,
+            )
+
+            self._emit(
+                ctx,
+                step="generate_plan",
+                status="running",
+                message="Consultando o modelo para propor alterações completas.",
+                iteration=iteration,
+                files=candidate_rel,
+            )
+
+            raw = self.router.ask(
+                prompt,
+                role=ModelRole.CODER,
+                system_prompt=self._system_prompt(),
+            )
+
+            plan = self._parse_plan(raw)
+            summary = str(plan.get("summary", "")).strip() or f"Iteration {iteration}"
+            final_summary = summary
+
+            self._emit(
+                ctx,
+                step="backup_apply",
+                status="running",
+                message="Criando backups e aplicando a proposta.",
+                iteration=iteration,
+                files=candidate_rel,
+                summary=summary,
+            )
+
+            changes = self._apply_changes(
+                plan.get("changes", []),
+                run_id=ctx.run_id,
+                iteration=iteration,
+            )
+
+            if ctx.session is not None:
+                ctx.session.current_iteration = iteration
+
+            self._emit(
+                ctx,
+                step="run_tests",
+                status="running",
+                message="Executando a bateria de testes configurada.",
+                iteration=iteration,
+                files=[change.path for change in changes],
+                summary=summary,
+            )
+
+            test_report: AutoImplementTestReport | None = None
+            if ctx.test_command.strip():
+                test_report = self._run_tests(ctx.test_command)
+
+            self._emit(
+                ctx,
+                step="tests_complete",
+                status="success" if not test_report or test_report.success else "failure",
+                message="Teste concluído.",
+                iteration=iteration,
+                files=[change.path for change in changes],
+                summary=summary,
+                test=test_report,
+                error=test_report.stderr if test_report and not test_report.success else None,
+            )
+
+            iterations.append(
+                AutoImplementIteration(
+                    iteration=iteration,
+                    summary=summary,
+                    changes=changes,
+                    test=test_report,
+                )
+            )
+
+            previous_test = test_report
+            previous_summary = self._summarize_iteration(summary, changes, test_report)
+
+            if test_report and test_report.success:
+                break
+
+        duration_ms = (time.perf_counter() - ctx.started_at) * 1000
+        success = bool(
+            iterations
+            and iterations[-1].test is not None
+            and iterations[-1].test.success
+        )
+
+        if ctx.session is not None and ctx.session.cancel_requested:
+            success = False
+
+        result = AutoImplementResult(
+            objective=ctx.objective,
+            summary=final_summary,
+            provider=self.provider,
+            model=self.model,
+            candidate_files=sorted(seen_candidates),
+            iterations=iterations,
+            success=success,
+            test_command=ctx.test_command,
+            duration_ms=duration_ms,
+        )
+
+        if ctx.session is not None:
+            ctx.session.duration_ms = duration_ms
+            ctx.session.summary = final_summary
+
+        return result
 
     def _system_prompt(self) -> str:
-        return (
-            "Você é o mecanismo de auto-implementação do ClawAI.\n"
-            "Retorne APENAS um JSON válido, sem markdown, sem blocos de código e sem explicações.\n"
-            "Esquema esperado:\n"
-            '{\n'
-            '  "summary": "resumo curto",\n'
-            '  "changes": [\n'
-            '    {\n'
-            '      "path": "caminho/relativo/ao/repo.ext",\n'
-            '      "content": "conteúdo completo do arquivo"\n'
-            "    }\n"
-            "  ]\n"
-            "}\n"
-            "Regras:\n"
-            "- Use apenas caminhos relativos ao root do repositório.\n"
-            "- Se um arquivo não precisa mudar, não o inclua.\n"
-            "- Quando mudar um arquivo, forneça o conteúdo completo final do arquivo.\n"
-            "- Faça mudanças mínimas e preservando a arquitetura existente.\n"
-            "- Se houver falhas de teste anteriores, corrija-as primeiro.\n"
-            "- Se não houver mudanças necessárias, retorne changes como lista vazia.\n"
-        )
+        return """Você é o mecanismo de auto-implementação do ClawAI.
+Retorne APENAS um JSON válido, sem markdown, sem blocos de código e sem explicações.
+Esquema esperado:
+{
+  "summary": "resumo curto",
+  "changes": [
+    {
+      "path": "caminho/relativo/ao/repo.ext",
+      "content": "conteúdo completo do arquivo"
+    }
+  ]
+}
+Regras:
+- Use apenas caminhos relativos ao root do repositório.
+- Se um arquivo não precisa mudar, não o inclua.
+- Quando mudar um arquivo, forneça o conteúdo completo final do arquivo.
+- Faça mudanças mínimas e preservando a arquitetura existente.
+- Se houver falhas de teste anteriores, corrija-as primeiro.
+- Se não houver mudanças necessárias, retorne changes como lista vazia.
+"""
 
     def _iter_repo_files(self) -> Iterable[Path]:
         for path in ROOT.rglob("*"):
@@ -253,7 +541,7 @@ class AutoImplementService:
         hints: set[str] = set()
 
         matches = re.findall(
-            r"[A-Za-z0-9_./\\-]+\.(?:py|pyi|tsx|ts|jsx|js|json|toml|md|ya?ml|cfg|ini|css|html)",
+            r"[A-Za-z0-9_./\-]+\.(?:py|pyi|tsx|ts|jsx|js|json|toml|md|ya?ml|cfg|ini|css|html)",
             text,
             flags=re.IGNORECASE,
         )
@@ -364,7 +652,6 @@ class AutoImplementService:
                 selected_set.add(rel)
 
         return selected[:max_files]
-
     def _read_file_snippet(self, path: Path) -> str:
         try:
             content = path.read_text(encoding="utf-8", errors="ignore")
@@ -375,7 +662,6 @@ class AutoImplementService:
             return content
 
         return content[:MAX_FILE_CONTEXT_CHARS] + "\n\n[TRUNCATED]"
-
     def _build_prompt(
         self,
         objective: str,
@@ -405,9 +691,7 @@ class AutoImplementService:
                 f"{previous_test.stderr}\n"
             )
 
-        parts.append(
-            "Arquivos relevantes atuais:\n"
-        )
+        parts.append("Arquivos relevantes atuais:\n")
 
         for path in candidate_paths:
             rel = path.relative_to(ROOT).as_posix()
@@ -426,7 +710,6 @@ class AutoImplementService:
         )
 
         return "\n".join(parts)
-
     def _extract_json(self, raw: str) -> dict[str, object]:
         text = raw.strip()
 
@@ -527,7 +810,6 @@ class AutoImplementService:
         if len(text) <= MAX_STDIO_CHARS:
             return text
         return text[:MAX_STDIO_CHARS] + "\n\n[TRUNCATED]"
-
     def _run_tests(self, command: str) -> AutoImplementTestReport:
         started = time.perf_counter()
         try:
@@ -562,7 +844,6 @@ class AutoImplementService:
                 stderr=(stderr or "") + "\nTimed out after 1800 seconds.",
                 duration_ms=duration_ms,
             )
-
     def _summarize_iteration(
         self,
         summary: str,
@@ -579,10 +860,9 @@ class AutoImplementService:
                 f"Resumo: {summary}",
                 test_line,
                 "Alterações:",
-                *change_lines if change_lines else ["- nenhuma"],
+                *(change_lines if change_lines else ["- nenhuma"]),
             ]
         )
-
     def _parse_plan(self, raw: str) -> dict[str, object]:
         try:
             return self._extract_json(raw)
