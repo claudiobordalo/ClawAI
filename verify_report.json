@@ -1,0 +1,67 @@
+{
+  "status": "FAIL",
+  "started_at": "2026-06-28T23:10:55.871633+00:00",
+  "finished_at": "2026-06-28T23:11:04.886583+00:00",
+  "duration_ms": 9014.947399991797,
+  "steps": [
+    {
+      "name": "python_compile",
+      "command": "C:\\Users\\Clau\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -m py_compile api.py",
+      "success": true,
+      "return_code": 0,
+      "duration_ms": 42.93440000037663,
+      "stdout": "",
+      "stderr": "",
+      "skipped": false
+    },
+    {
+      "name": "compileall",
+      "command": "C:\\Users\\Clau\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -m compileall clawai",
+      "success": true,
+      "return_code": 0,
+      "duration_ms": 100.651700005983,
+      "stdout": "Listing 'clawai'...\nListing 'clawai\\\\agent'...\nListing 'clawai\\\\agents'...\nListing 'clawai\\\\agents\\\\base'...\nListing 'clawai\\\\agents\\\\factory'...\nListing 'clawai\\\\agents\\\\implementations'...\nListing 'clawai\\\\agents\\\\manager'...\nListing 'clawai\\\\agents\\\\registry'...\nListing 'clawai\\\\ai'...\nListing 'clawai\\\\api'...\nListing 'clawai\\\\application'...\nListing 'clawai\\\\autopilot'...\nListing 'clawai\\\\chat'...\nListing 'clawai\\\\cli'...\nListing 'clawai\\\\codebase'...\nListing 'clawai\\\\cognition'...\nListing 'clawai\\\\config'...\nListing 'clawai\\\\context'...\nListing 'clawai\\\\core'...\nListing 'clawai\\\\core\\\\config'...\nListing 'clawai\\\\core\\\\config\\\\loaders'...\nListing 'clawai\\\\core\\\\container'...\nListing 'clawai\\\\core\\\\logging'...\nListing 'clawai\\\\core\\\\utils'...\nListing 'clawai\\\\development'...\nListing 'clawai\\\\diffing'...\nListing 'clawai\\\\dispatcher'...\nListing 'clawai\\\\documents'...\nListing 'clawai\\\\editor'...\nListing 'clawai\\\\engineering'...\nListing 'clawai\\\\execution'...\nListing 'clawai\\\\executor'...\nListing 'clawai\\\\goals'...\nListing 'clawai\\\\indexing'...\nListing 'clawai\\\\knowledge'...\nListing 'clawai\\\\llm'...\nListing 'clawai\\\\memory'...\nListing 'clawai\\\\memory\\\\base'...\nListing 'clawai\\\\memory\\\\embeddings'...\nListing 'clawai\\\\memory\\\\long_term'...\nListing 'clawai\\\\memory\\\\models'...\nListing 'clawai\\\\memory\\\\providers'...\nListing 'clawai\\\\memory\\\\short_term'...\nListing 'clawai\\\\memory\\\\stores'...\nListing 'clawai\\\\memory\\\\stores\\\\chroma'...\nListing 'clawai\\\\mission'...\nListing 'clawai\\\\orchestrator'...\nListing 'clawai\\\\parser'...\nListing 'clawai\\\\patching'...\nListing 'clawai\\\\planner'...\nListing 'clawai\\\\planning'...\nListing 'clawai\\\\projects'...\nListing 'clawai\\\\projects\\\\models'...\nListing 'clawai\\\\projects\\\\services'...\nListing 'clawai\\\\prompt'...\nListing 'clawai\\\\prompts'...\nListing 'clawai\\\\prompts\\\\models'...\nListing 'clawai\\\\providers'...\nListing 'clawai\\\\providers\\\\base'...\nListing 'clawai\\\\providers\\\\factory'...\nListing 'clawai\\\\providers\\\\implementations'...\nListing 'clawai\\\\providers\\\\manager'...\nListing 'clawai\\\\rag'...\nListing 'clawai\\\\rag\\\\models'...\nListing 'clawai\\\\rag\\\\services'...\nListing 'clawai\\\\resources'...\nListing 'clawai\\\\retrieval'...\nListing 'clawai\\\\search'...\nListing 'clawai\\\\selfrepair'...\nListing 'clawai\\\\storage'...\nListing 'clawai\\\\storage\\\\interfaces'...\nListing 'clawai\\\\storage\\\\providers'...\nListing 'clawai\\\\storage\\\\services'...\nListing 'clawai\\\\strategy'...\nListing 'clawai\\\\testing'...\nListing 'clawai\\\\tools'...\nListing 'clawai\\\\tools\\\\base'...\nListing 'clawai\\\\tools\\\\implementations'...\nListing 'clawai\\\\tools\\\\manager'...\nListing 'clawai\\\\tools\\\\registry'...\nListing 'clawai\\\\tracing'...\nListing 'clawai\\\\verification'...\nListing 'clawai\\\\vision'...\nListing 'clawai\\\\web'...\nListing 'clawai\\\\workspace'...\nListing 'clawai\\\\workspace\\\\indexer'...\nListing 'clawai\\\\workspace\\\\models'...\nListing 'clawai\\\\workspace\\\\services'...\n",
+      "stderr": "",
+      "skipped": false
+    },
+    {
+      "name": "frontend_build",
+      "command": "cmd /c npm run build",
+      "success": true,
+      "return_code": 0,
+      "duration_ms": 2296.566499993787,
+      "stdout": "\n> frontend@0.0.0 build\n> tsc -b && vite build\n\n\u001b[36mvite v8.1.0 \u001b[32mbuilding client environment for production...\u001b[36m\u001b[39m\n\u001b[2K\ntransforming...âœ“ 89 modules transformed.\nrendering chunks...\ncomputing gzip size...\ndist/index.html                   0.45 kB â”‚ gzip:  0.29 kB\ndist/assets/index-C3xtUtpB.css    2.74 kB â”‚ gzip:  0.93 kB\ndist/assets/index-DmUWNy3i.js   270.99 kB â”‚ gzip: 87.41 kB\n\n\u001b[32mâœ“ built in 170ms\u001b[39m\n",
+      "stderr": "",
+      "skipped": false
+    },
+    {
+      "name": "pytest",
+      "command": "C:\\Users\\Clau\\AppData\\Local\\Programs\\Python\\Python313\\python.exe -m pytest -q",
+      "success": true,
+      "return_code": 0,
+      "duration_ms": 6573.491000002832,
+      "stdout": "============================= test session starts =============================\nplatform win32 -- Python 3.13.7, pytest-9.1.1, pluggy-1.6.0\nrootdir: D:\\ClawAI\nconfigfile: pytest.ini\ntestpaths: tests\nplugins: anyio-4.10.0\ncollected 684 items\n\ntests\\unit\\test_action_executor.py .....                                 [  0%]\ntests\\unit\\test_agent.py .......................................         [  6%]\ntests\\unit\\test_agent_config.py ....                                     [  7%]\ntests\\unit\\test_agent_engine.py .....................                    [ 10%]\ntests\\unit\\test_agent_loop.py ........                                   [ 11%]\ntests\\unit\\test_agent_loop_planner.py ....                               [ 11%]\ntests\\unit\\test_application.py .                                         [ 11%]\ntests\\unit\\test_autonomous_executor.py .............                     [ 13%]\ntests\\unit\\test_change_request.py ..                                     [ 14%]\ntests\\unit\\test_code_analyzer.py ...                                     [ 14%]\ntests\\unit\\test_code_editor.py .....                                     [ 15%]\ntests\\unit\\test_cognition.py ........................................... [ 21%]\n.....                                                                    [ 22%]\ntests\\unit\\test_context_builder_build_flow.py ...                        [ 22%]\ntests\\unit\\test_context_builder_incremental.py ..                        [ 23%]\ntests\\unit\\test_context_retriever.py ...                                 [ 23%]\ntests\\unit\\test_conversation_memory.py ................................. [ 28%]\n.                                                                        [ 28%]\ntests\\unit\\test_dependency_graph.py ..                                   [ 28%]\ntests\\unit\\test_development_pipeline.py ........                         [ 29%]\ntests\\unit\\test_development_request.py .                                 [ 30%]\ntests\\unit\\test_development_result.py .                                  [ 30%]\ntests\\unit\\test_edit_applier.py ...                                      [ 30%]\ntests\\unit\\test_edit_operation.py ..                                     [ 30%]\ntests\\unit\\test_edit_validator.py .....                                  [ 31%]\ntests\\unit\\test_engineering_memory.py ..                                 [ 32%]\ntests\\unit\\test_engineering_record.py .                                  [ 32%]\ntests\\unit\\test_execution_request.py ..                                  [ 32%]\ntests\\unit\\test_execution_result.py ..                                   [ 32%]\ntests\\unit\\test_execution_trace.py .........                             [ 34%]\ntests\\unit\\test_file_scanner.py ....                                     [ 34%]\ntests\\unit\\test_filesystem_tool.py .....                                 [ 35%]\ntests\\unit\\test_goal.py ..............................                   [ 39%]\ntests\\unit\\test_goal_backlog.py .........                                [ 41%]\ntests\\unit\\test_goal_coverage.py ....................................... [ 46%]\n...............                                                          [ 48%]\ntests\\unit\\test_goal_events.py ..........                                [ 50%]\ntests\\unit\\test_goal_manager.py ........................................ [ 56%]\n........                                                                 [ 57%]\ntests\\unit\\test_goal_planner.py .........                                [ 58%]\ntests\\unit\\test_goal_progress.py ................                        [ 61%]\ntests\\unit\\test_goal_repository.py ............                          [ 62%]\ntests\\unit\\test_goal_validator.py .........                              [ 64%]\ntests\\unit\\test_llm_executor.py ................                         [ 66%]\ntests\\unit\\test_llm_planner.py .........                                 [ 67%]\ntests\\unit\\test_memory_query.py .                                        [ 67%]\ntests\\unit\\test_memory_result.py .                                       [ 68%]\ntests\\unit\\test_mission_executor_flow.py .                               [ 68%]\ntests\\unit\\test_model_router.py ...                                      [ 68%]\ntests\\unit\\test_patch.py .                                               [ 68%]\ntests\\unit\\test_patch_agent_uses_mission_executor.py .                   [ 69%]\ntests\\unit\\test_patch_generator.py ......                                [ 69%]\ntests\\unit\\test_patch_plan.py ..                                         [ 70%]\ntests\\unit\\test_patch_planner.py ........                                [ 71%]\ntests\\unit\\test_patch_validator.py .....                                 [ 72%]\ntests\\unit\\test_path_matcher.py ..                                       [ 72%]\ntests\\unit\\test_planner.py .........                                     [ 73%]\ntests\\unit\\test_planner_multistep.py .......                             [ 74%]\ntests\\unit\\test_project_analyzer.py .                                    [ 74%]\ntests\\unit\\test_prompt_engine.py .....                                   [ 75%]\ntests\\unit\\test_prompt_engine_memory.py ........                         [ 76%]\ntests\\unit\\test_prompt_engine_tools.py ............                      [ 78%]\ntests\\unit\\test_prompt_manager.py .                                      [ 78%]\ntests\\unit\\test_provider_factory.py .....                                [ 79%]\ntests\\unit\\test_repair_context.py .                                      [ 79%]\ntests\\unit\\test_repair_decision.py .                                     [ 79%]\ntests\\unit\\test_repair_iteration.py .                                    [ 79%]\ntests\\unit\\test_repair_request.py ..                                     [ 80%]\ntests\\unit\\test_repair_result.py ..                                      [ 80%]\ntests\\unit\\test_repair_strategy.py ......                                [ 81%]\ntests\\unit\\test_resource_manager.py ....                                 [ 81%]\ntests\\unit\\test_response_parser.py ..........................            [ 85%]\ntests\\unit\\test_rule_engine.py .....                                     [ 86%]\ntests\\unit\\test_self_repair_engine.py ..........                         [ 87%]\ntests\\unit\\test_self_verifier.py ......                                  [ 88%]\ntests\\unit\\test_symbol_extractor.py ....                                 [ 89%]\ntests\\unit\\test_symbol_index.py ..                                       [ 89%]\ntests\\unit\\test_system_prompt.py ........                                [ 90%]\ntests\\unit\\test_test_case_result.py .                                    [ 90%]\ntests\\unit\\test_test_diagnosis.py ........                               [ 92%]\ntests\\unit\\test_test_parser.py ....                                      [ 92%]\ntests\\unit\\test_test_request.py ...                                      [ 93%]\ntests\\unit\\test_test_runner.py ......                                    [ 94%]\ntests\\unit\\test_test_suite_result.py .                                   [ 94%]\ntests\\unit\\test_tool_discovery.py ....................                   [ 97%]\ntests\\unit\\test_tool_executor.py ....                                    [ 97%]\ntests\\unit\\test_tool_registry.py ..                                      [ 97%]\ntests\\unit\\test_tool_selection_policy.py ......                          [ 98%]\ntests\\unit\\test_verification_result.py .                                 [ 98%]\ntests\\unit\\test_verification_rule.py .                                   [ 99%]\ntests\\unit\\test_workspace_components.py ......                           [100%]\n\n============================= 684 passed in 6.24s =============================\n",
+      "stderr": "",
+      "skipped": false
+    },
+    {
+      "name": "api",
+      "command": "GET /health; POST /api/chat",
+      "success": false,
+      "return_code": 1,
+      "duration_ms": 0.46860000293236226,
+      "stdout": "",
+      "stderr": "No module named 'fastapi'",
+      "skipped": false
+    }
+  ],
+  "tests_total": 684,
+  "tests_passed": 684,
+  "tests_failed": null,
+  "tests_skipped": null,
+  "tests_errors": null,
+  "warnings": null,
+  "api_health_ok": false,
+  "api_chat_ok": false,
+  "api_answer_preview": null
+}
