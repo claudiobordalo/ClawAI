@@ -7,6 +7,8 @@ from typing import Tuple, Union, Sequence
 
 @dataclass(frozen=True)
 class TestRequest:
+    __test__ = False
+
     """Immutable test execution request.
 
     Fields:
@@ -14,6 +16,7 @@ class TestRequest:
     - command: command to execute pytest or other test runner. Prefer tuple[str, ...].
     - timeout: timeout in seconds for the whole execution.
     """
+
     project_root: Path
     command: Tuple[str, ...]
     timeout: float
