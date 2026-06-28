@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from clawai.agent import AgentConfiguration, AgentContext, AgentLoop
 from clawai.config.agent_config import AgentConfig
-from clawai.cognition import CognitiveFactory, ReasoningEngine
+from clawai.cognition import CognitiveFactory
 from clawai.engineering import EngineeringMemory
 from clawai.goals import GoalEventBus, GoalManager, GoalPlanner
 from clawai.agent import RetryPolicy
@@ -32,32 +32,6 @@ def test_agent_config_immutable() -> None:
 
     with pytest.raises(Exception):
         config.max_iterations = 20  # type: ignore[assignment]
-
-
-def _make_context(*, config: AgentConfiguration, planner: MagicMock | None = None, executor: MagicMock | None = None) -> AgentContext:
-    planner_obj = planner if planner is not None else GoalPlanner()
-    executor_obj = executor if executor is not None else MagicMock(spec=AbstractExecutor)
-
-    # GoalPlanner -> GoalBacklog -> goals will be iterated by AgentLoop
-    mem = EngineeringMemory()
-    gm = GoalManager(MagicMock())
-
-    # Use EngineeringMemoryGoalRepository contract via GoalManager? GoalManager implementation expects repository.
-    # In these tests we mock goal_manager directly where needed, so keep gm unused.
-    # However AgentLoop uses gm methods -> so we still provide a real GoalManager for method presence.
-    event_bus = GoalEventBus()
-
-    return AgentContext(
-        planner=planner_obj,
-        goal_manager=gm,
-        executor=executor_obj,
-        memory=mem,
-        event_bus=event_bus,
-        reasoning_engine=CognitiveFactory().create_reasoning_engine(),
-        retry_policy=RetryPolicy(),
-        config=config,
-        checkpoint_manager=None,
-    )
 
 
 def test_agent_loop_accepts_agent_configuration_from_context() -> None:

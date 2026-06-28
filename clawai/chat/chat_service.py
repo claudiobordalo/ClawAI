@@ -1,26 +1,73 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
+import time
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Iterator
 
-from clawai.agents.agent import GeneralAgent
+from clawai.ai.router import AIRouter, ModelRole
 from clawai.documents.reader import documents
-from clawai.search.search_engine import search
+from clawai.memory.memory import memory
+from clawai.search.search_engine import SearchResult, SearchTimings, search
+
+
+SYSTEM_PROMPT = """
+Você é o ClawAI.
+
+Você é um assistente geral.
+
+Pode responder sobre programação, saúde, alimentação, jogos,
+Windows, Linux, SAP, Dofus, GTA, estudos e qualquer outro assunto.
+
+Quando aprender algo que provavelmente será útil novamente para este
+usuário, grave apenas UMA memória resumida.
+
+Nunca grave informações temporárias, conversas casuais ou fatos públicos.
+
+Se utilizar alguma informação nova que mereça ser lembrada futuramente,
+termine sua resposta exatamente com:
+
+<MEMORY>
+titulo: ...
+conteudo: ...
+</MEMORY>
+
+Caso contrário, não utilize essa marcação.
+""".strip()
+
+
+@dataclass(slots=True, frozen=True)
+class ChatTimings:
+    search: SearchTimings = field(default_factory=SearchTimings)
+    model_ms: float = 0.0
+    postprocess_ms: float = 0.0
+    total_ms: float = 0.0
+
+
+@dataclass(slots=True, frozen=True)
+class ChatResponse:
+    answer: str
+    used_memory: bool
+    used_knowledge: bool
+    requires_web: bool
+    provider: str
+    model: str
+    memory_saved: bool = False
+    timings: ChatTimings = field(default_factory=ChatTimings)
 
 
 class ChatService:
-
     def __init__(self) -> None:
+        self.router = AIRouter()
+        self.provider_name = getattr(self.router, "_provider", "ollama")
+        self.model_name = self.router.model_for(ModelRole.DEFAULT)
 
-        self.agent = GeneralAgent()
-
-    def ask(
+    def _prepare_prompt(
         self,
         prompt: str,
         file: str | None = None,
-    ) -> str:
-
+    ) -> tuple[str, SearchResult]:
         if file:
-
             path = Path(file)
 
             if not path.exists():
@@ -28,36 +75,154 @@ class ChatService:
 
             content = documents.read(path)
 
-            prompt = f"""
-Arquivo enviado:
+            prompt = (
+                "Arquivo enviado:\n\n"
+                f"Nome:\n{path.name}\n\n"
+                "Conteúdo:\n\n"
+                f"{content}\n\n"
+                "Pergunta do usuário:\n\n"
+                f"{prompt}"
+            )
 
-Nome:
-{path.name}
+        search_result = search.build_prompt(prompt)
 
-Conteúdo:
+        model_prompt = (
+            f"{SYSTEM_PROMPT}\n\n"
+            f"{search_result.prompt}"
+        )
 
-{content}
+        return model_prompt, search_result
 
-Pergunta do usuário:
+    def _finalize_answer(self, answer: str) -> tuple[str, bool]:
+        memory_saved = False
 
-{prompt}
-"""
+        if "<MEMORY>" in answer and "</MEMORY>" in answer:
+            try:
+                block = answer.split("<MEMORY>", 1)[1].split("</MEMORY>", 1)[0]
 
-        result = search.ask(prompt)
+                title = ""
+                content = ""
 
-        if result.requires_web:
+                for line in block.splitlines():
+                    if line.lower().startswith("titulo:"):
+                        title = line.split(":", 1)[1].strip()
 
-            prompt = f"""
-Caso o conhecimento não seja suficiente,
-responda utilizando seu conhecimento atual e
-explique onde há incerteza.
+                    if line.lower().startswith("conteudo:"):
+                        content = line.split(":", 1)[1].strip()
 
-Pergunta:
+                if title and content:
+                    memory.add(
+                        category="general",
+                        title=title,
+                        content=content,
+                        source="chat",
+                    )
+                    memory_saved = True
 
-{prompt}
-"""
+                answer = answer.split("<MEMORY>", 1)[0].strip()
+            except Exception:
+                pass
 
-        return self.agent.ask(prompt)
+        return answer, memory_saved
+
+    def ask(
+        self,
+        prompt: str,
+        file: str | None = None,
+    ) -> ChatResponse:
+        started = time.perf_counter()
+
+        model_prompt, search_result = self._prepare_prompt(prompt, file)
+
+        model_started = time.perf_counter()
+        raw_answer = self.router.ask(model_prompt)
+        model_ms = (time.perf_counter() - model_started) * 1000
+
+        postprocess_started = time.perf_counter()
+        answer, memory_saved = self._finalize_answer(raw_answer)
+        postprocess_ms = (time.perf_counter() - postprocess_started) * 1000
+
+        total_ms = (time.perf_counter() - started) * 1000
+
+        return ChatResponse(
+            answer=answer,
+            used_memory=search_result.used_memory,
+            used_knowledge=search_result.used_knowledge,
+            requires_web=search_result.requires_web,
+            provider=self.provider_name,
+            model=self.model_name,
+            memory_saved=memory_saved,
+            timings=ChatTimings(
+                search=search_result.timings,
+                model_ms=model_ms,
+                postprocess_ms=postprocess_ms,
+                total_ms=total_ms,
+            ),
+        )
+
+    def ask_stream(
+        self,
+        prompt: str,
+        file: str | None = None,
+    ) -> Iterator[dict[str, object]]:
+        started = time.perf_counter()
+
+        model_prompt, search_result = self._prepare_prompt(prompt, file)
+
+        model_started = time.perf_counter()
+        chunks: list[str] = []
+        emitted = ""
+
+        for chunk in self.router.stream(model_prompt):
+            chunks.append(chunk)
+            combined = "".join(chunks)
+
+            if "<MEMORY>" in combined:
+                visible = combined.split("<MEMORY>", 1)[0]
+            else:
+                visible = combined
+
+            delta = visible[len(emitted):]
+            if delta:
+                yield {
+                    "type": "delta",
+                    "text": delta,
+                }
+                emitted = visible
+
+            if "<MEMORY>" in combined:
+                break
+
+        model_ms = (time.perf_counter() - model_started) * 1000
+
+        raw_answer = "".join(chunks)
+
+        postprocess_started = time.perf_counter()
+        answer, memory_saved = self._finalize_answer(raw_answer)
+        postprocess_ms = (time.perf_counter() - postprocess_started) * 1000
+
+        total_ms = (time.perf_counter() - started) * 1000
+
+        response = ChatResponse(
+            answer=answer,
+            used_memory=search_result.used_memory,
+            used_knowledge=search_result.used_knowledge,
+            requires_web=search_result.requires_web,
+            provider=self.provider_name,
+            model=self.model_name,
+            memory_saved=memory_saved,
+            timings=ChatTimings(
+                search=search_result.timings,
+                model_ms=model_ms,
+                postprocess_ms=postprocess_ms,
+                total_ms=total_ms,
+            ),
+        )
+
+        yield {
+            "type": "final",
+            "reply": asdict(response),
+        }
 
 
 chat = ChatService()

@@ -5,40 +5,49 @@ export type TreeNode = {
     children: TreeNode[];
 };
 
-export function buildTree(items: any[]): TreeNode[] {
+type TreeItem = string | { path?: string; directory?: boolean };
 
+export function buildTree(items: TreeItem[]): TreeNode[] {
     const root: TreeNode[] = [];
 
     for (const item of items) {
+        const rawPath =
+            typeof item === "string"
+                ? item
+                : item?.path;
 
-        const parts = item.path.replace(/\\/g,"/").split("/");
+        if (!rawPath)
+            continue;
+
+        const parts = rawPath
+            .replace(/\\/g, "/")
+            .split("/")
+            .filter(Boolean);
 
         let current = root;
         let currentPath = "";
 
-        for (let i=0;i<parts.length;i++) {
-
+        for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
 
             currentPath = currentPath
-                ? currentPath + "/" + part
+                ? `${currentPath}/${part}`
                 : part;
 
-            let node = current.find(n=>n.name===part);
+            let node = current.find(n => n.name === part);
 
             if (!node) {
-
                 node = {
                     name: part,
                     path: currentPath,
-                    directory: i < parts.length-1 || item.directory,
-                    children:[]
+                    directory: i < parts.length - 1,
+                    children: []
                 };
 
                 current.push(node);
             }
 
-            current=node.children;
+            current = node.children;
         }
     }
 

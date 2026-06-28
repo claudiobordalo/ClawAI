@@ -1,6 +1,9 @@
 ﻿from __future__ import annotations
 
 from enum import Enum
+from typing import Iterator
+
+import clawai.providers  # noqa: F401
 
 from clawai.core.config.settings import Settings
 from clawai.providers.base import BaseProvider
@@ -17,17 +20,12 @@ class ModelRole(str, Enum):
 
 
 class ModelRouter:
-    """
-    Resolve modelos por papel e cria providers sem acoplar o app a um modelo.
-    """
-
     def __init__(
         self,
         settings: Settings | None = None,
         provider_factory: type[ProviderFactory] = ProviderFactory,
         provider: str = "ollama",
     ) -> None:
-
         self._settings = settings or Settings()
         self._provider_factory = provider_factory
         self._provider = provider
@@ -65,16 +63,34 @@ class ModelRouter:
         role: ModelRole | str = ModelRole.DEFAULT,
         system_prompt: str | None = None,
     ) -> str:
-        """
-        Executa um prompt usando o provider associado ao papel informado.
-        """
         provider = self.provider_for(role)
         response = provider.generate(
             prompt=prompt,
             system_prompt=system_prompt,
         )
-
         return response.content
+
+    def stream(
+        self,
+        prompt: str,
+        role: ModelRole | str = ModelRole.DEFAULT,
+        system_prompt: str | None = None,
+    ) -> Iterator[str]:
+        provider = self.provider_for(role)
+
+        stream_generate = getattr(provider, "stream_generate", None)
+        if callable(stream_generate):
+            yield from stream_generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+            )
+            return
+
+        response = provider.generate(
+            prompt=prompt,
+            system_prompt=system_prompt,
+        )
+        yield response.content
 
 
 AIRouter = ModelRouter

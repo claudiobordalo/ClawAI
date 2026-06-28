@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, PropertyMock
 import pytest
 
 from clawai.agent import (
-    AgentLoop,
     AgentConfiguration,
     AgentContext,
     AgentLoop,
@@ -35,7 +34,7 @@ from clawai.agent.execution_events import (
     SESSION_FINISHED,
     SESSION_STARTED,
 )
-from clawai.cognition import CognitiveFactory, ReasoningEngine
+from clawai.cognition import CognitiveFactory
 from clawai.engineering import EngineeringMemory
 from clawai.goals import (
     EngineeringMemoryGoalRepository,
@@ -303,7 +302,7 @@ class TestAgentContext:
             executor=MagicMock(),
             memory=mem,
             event_bus=bus,
-            reasoning_engine=ReasoningEngine(),
+            reasoning_engine=CognitiveFactory().create_reasoning_engine(),
             retry_policy=RetryPolicy(),
             config=AgentConfiguration(),
         )
@@ -312,27 +311,6 @@ class TestAgentContext:
 
 
 # ===== Integration: AutonomousAgent =====
-
-class _AgentHelper:
-    @staticmethod
-    def create_agent(**kwargs):
-        from clawai.agent import AgentContext
-        from clawai.agent.agent_loop import AgentLoop
-        from clawai.goals import GoalEventBus
-        
-        context_kwargs = {}
-        context_kwargs["planner"] = kwargs.pop("planner", None)
-        context_kwargs["goal_manager"] = kwargs.pop("goal_manager", None)
-        context_kwargs["executor"] = kwargs.pop("executor", None)
-        context_kwargs["memory"] = kwargs.pop("memory", None)
-        context_kwargs["event_bus"] = kwargs.pop("event_bus", GoalEventBus())
-        context_kwargs["reasoning_engine"] = kwargs.pop("reasoning_engine", CognitiveFactory().create_reasoning_engine())
-        context_kwargs["retry_policy"] = kwargs.pop("retry_policy", RetryPolicy())
-        context_kwargs["config"] = kwargs.pop("config", AgentConfiguration())
-        
-        ctx = AgentContext(**context_kwargs)
-        loop = AgentLoop(ctx)
-        return AutonomousAgent(context=ctx, agent_loop=loop)
 
 class TestAutonomousAgent:
     def test_agent_run_empty_objective(self):

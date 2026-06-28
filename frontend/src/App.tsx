@@ -1,12 +1,10 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import { useEffect, useMemo, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 
 import Explorer from "./Explorer";
 import ChatPanel from "./ChatPanel";
-import { buildTree } from "./tree";
+import { loadFile, loadTree, saveFile } from "./api";
 import type { TreeNode } from "./tree";
-
 import "./App.css";
 
 type Tab = {
@@ -17,57 +15,55 @@ type Tab = {
 };
 
 export default function App() {
-
     const [tree, setTree] = useState<TreeNode[]>([]);
     const [tabs, setTabs] = useState<Tab[]>([]);
     const [active, setActive] = useState("");
 
     useEffect(() => {
-        loadTree();
+        void loadRootTree();
     }, []);
 
     useEffect(() => {
-
         function onKeyDown(e: KeyboardEvent) {
-
             const key = e.key.toLowerCase();
 
             if ((e.ctrlKey || e.metaKey) && key === "s") {
                 e.preventDefault();
-                saveCurrent();
+                void saveCurrent();
             }
 
             if ((e.ctrlKey || e.metaKey) && key === "w") {
                 e.preventDefault();
-                if (active)
+                if (active) {
                     closeTab(active);
+                }
             }
-
         }
 
         window.addEventListener("keydown", onKeyDown);
 
-        return () =>
-            window.removeEventListener("keydown", onKeyDown);
-
+        return () => window.removeEventListener("keydown", onKeyDown);
     }, [tabs, active]);
 
-    async function loadTree() {
+    async function loadRootTree() {
+        try {
+            setTree(await loadTree());
+        } catch (error) {
+            console.error("Falha ao carregar a árvore do projeto.", error);
+            setTree([]);
+        }
+    }
 
-        const response = await axios.get(
-            "http://127.0.0.1:8000/api/tree"
-        );
-
-        setTree(
-            Array.isArray(response.data)
-                ? buildTree(response.data)
-                : response.data
-        );
-
+    async function loadChildren(path: string) {
+        try {
+            return await loadTree(path);
+        } catch (error) {
+            console.error(`Falha ao carregar children de ${path}`, error);
+            return [];
+        }
     }
 
     async function openFile(path: string) {
-
         const existing = tabs.find(t => t.path === path);
 
         if (existing) {
@@ -75,14 +71,7 @@ export default function App() {
             return;
         }
 
-        const response = await axios.get(
-            "http://127.0.0.1:8000/api/file",
-            {
-                params: { path }
-            }
-        );
-
-        const text = response.data;
+        const text = await loadFile(path);
 
         setTabs(prev => [
             ...prev,
@@ -95,23 +84,16 @@ export default function App() {
         ]);
 
         setActive(path);
-
     }
 
     async function saveCurrent() {
-
         const current = tabs.find(t => t.path === active);
 
-        if (!current || !current.modified)
+        if (!current || !current.modified) {
             return;
+        }
 
-        await axios.post(
-            "http://127.0.0.1:8000/api/file",
-            {
-                path: current.path,
-                content: current.content
-            }
-        );
+        await saveFile(current.path, current.content);
 
         setTabs(prev =>
             prev.map(tab =>
@@ -124,40 +106,34 @@ export default function App() {
                     : tab
             )
         );
-
     }
 
     function closeTab(path: string) {
-
         const tab = tabs.find(t => t.path === path);
 
-        if (!tab)
+        if (!tab) {
             return;
+        }
 
-        if (tab.modified && !confirm("Descartar alterações deste arquivo?"))
+        if (tab.modified && !confirm("Descartar alterações deste arquivo?")) {
             return;
+        }
 
         const next = tabs.filter(t => t.path !== path);
 
         setTabs(next);
 
         if (active === path) {
-
             const index = tabs.findIndex(t => t.path === path);
 
-            if (next.length === 0)
+            if (next.length === 0) {
                 setActive("");
-            else if (index > 0)
+            } else if (index > 0) {
                 setActive(next[index - 1].path);
-            else
+            } else {
                 setActive(next[0].path);
-
+            }
         }
-
-    }
-
-    function handleChat(prompt: string) {
-        console.log("Prompt:", prompt);
     }
 
     const current = useMemo(
@@ -166,9 +142,7 @@ export default function App() {
     );
 
     function language(path: string) {
-
         switch (path.split(".").pop()?.toLowerCase()) {
-
             case "py": return "python";
             case "ts":
             case "tsx": return "typescript";
@@ -182,13 +156,10 @@ export default function App() {
             case "css": return "css";
             case "html": return "html";
             default: return "plaintext";
-
         }
-
     }
 
     return (
-
         <div
             style={{
                 display: "grid",
@@ -198,10 +169,10 @@ export default function App() {
                 overflow: "hidden"
             }}
         >
-
             <Explorer
                 nodes={tree}
                 onOpen={openFile}
+                onLoadChildren={loadChildren}
             />
 
             <div
@@ -211,7 +182,6 @@ export default function App() {
                     overflow: "hidden"
                 }}
             >
-
                 <div
                     style={{
                         display: "flex",
@@ -221,9 +191,7 @@ export default function App() {
                         overflowX: "auto"
                     }}
                 >
-
                     {tabs.map(tab => (
-
                         <div
                             key={tab.path}
                             onClick={() => setActive(tab.path)}
@@ -239,7 +207,6 @@ export default function App() {
                                 userSelect: "none"
                             }}
                         >
-
                             <span>
                                 {tab.modified ? "● " : ""}
                                 {tab.path.split("/").pop()}
@@ -254,11 +221,8 @@ export default function App() {
                             >
                                 ×
                             </span>
-
                         </div>
-
                     ))}
-
                 </div>
 
                 <MonacoEditor
@@ -273,9 +237,9 @@ export default function App() {
                         scrollBeyondLastLine: false
                     }}
                     onChange={(value) => {
-
-                        if (!current)
+                        if (!current) {
                             return;
+                        }
 
                         const text = value ?? "";
 
@@ -290,18 +254,11 @@ export default function App() {
                                     : tab
                             )
                         );
-
                     }}
                 />
-
             </div>
 
-            <ChatPanel
-                onSend={handleChat}
-            />
-
+            <ChatPanel />
         </div>
-
     );
-
 }
