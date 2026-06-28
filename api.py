@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import json
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from clawai.autopilot import auto_implement
 from clawai.chat.chat_service import chat
 
 ROOT = Path(__file__).resolve().parent
@@ -33,11 +32,17 @@ def _resolve_path(path: str) -> Path:
     return target
 
 
-def _sse(event: str, payload: dict[str, object]) -> str:
-    return (
-        f"event: {event}\n"
-        f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-    )
+def _payload(result: object) -> dict[str, object]:
+    if isinstance(result, str):
+        return {"answer": result}
+
+    if is_dataclass(result):
+        return asdict(result)
+
+    if isinstance(result, dict):
+        return result
+
+    return {"answer": str(result)}
 
 
 app = FastAPI(title="ClawAI API")
@@ -55,6 +60,13 @@ class ChatRequest(BaseModel):
     prompt: str
 
 
+class AutoImplementRequest(BaseModel):
+    objective: str
+    test_command: str = "uv run python -m pytest -q"
+    max_iterations: int = Field(default=3, ge=1, le=5)
+    max_files: int = Field(default=15, ge=1, le=20)
+
+
 @app.get("/health")
 def health():
     return {
@@ -69,43 +81,29 @@ def health():
 def chat_text(
     request: ChatRequest,
 ):
-    return asdict(
+    return _payload(
         chat.ask(
             prompt=request.prompt,
         )
     )
 
 
-@app.post("/api/chat/stream")
-def chat_text_stream(
-    request: ChatRequest,
+@app.post("/api/auto/implement")
+def auto_implement_route(
+    request: AutoImplementRequest,
 ):
-    def event_stream():
-        try:
-            for item in chat.ask_stream(request.prompt):
-                event = str(item.get("type", "message"))
-                payload = {
-                    key: value
-                    for key, value in item.items()
-                    if key != "type"
-                }
-                yield _sse(event, payload)
-        except Exception as exc:
-            yield _sse(
-                "error",
-                {
-                    "message": str(exc),
-                },
-            )
-
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    try:
+        result = auto_implement.implement(
+            objective=request.objective,
+            test_command=request.test_command,
+            max_iterations=request.max_iterations,
+            max_files=request.max_files,
+        )
+        return asdict(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/api/chat/image")
@@ -114,6 +112,7 @@ async def chat_image(
     image: UploadFile = File(...),
 ):
     temp = ROOT / ".clawai" / "temp"
+
     temp.mkdir(
         parents=True,
         exist_ok=True,
@@ -121,9 +120,11 @@ async def chat_image(
 
     filename = Path(image.filename or "image.bin").name
     target = temp / filename
-    target.write_bytes(await image.read())
+    target.write_bytes(
+        await image.read()
+    )
 
-    return asdict(
+    return _payload(
         chat.ask(
             prompt=prompt,
             file=str(target),
@@ -137,6 +138,7 @@ async def chat_file(
     file: UploadFile = File(...),
 ):
     temp = ROOT / ".clawai" / "temp"
+
     temp.mkdir(
         parents=True,
         exist_ok=True,
@@ -144,7 +146,9 @@ async def chat_file(
 
     filename = Path(file.filename or "arquivo").name
     target = temp / filename
-    target.write_bytes(await file.read())
+    target.write_bytes(
+        await file.read()
+    )
 
     suffix = target.suffix.lower()
 
@@ -155,7 +159,7 @@ async def chat_file(
         ".webp",
         ".bmp",
     }:
-        return asdict(
+        return _payload(
             chat.ask(
                 prompt=prompt,
                 file=str(target),

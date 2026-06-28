@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { streamChat, type ChatReply } from "./api";
+import {
+    runAutoImplement,
+    sendChat,
+    type AutoImplementReport,
+    type ChatReply
+} from "./api";
 
 type Message = {
     id: number;
@@ -8,12 +13,24 @@ type Message = {
     reply?: ChatReply;
 };
 
-function formatTime(ms: number): string {
+function formatTime(ms?: number): string {
+    if (typeof ms !== "number" || Number.isNaN(ms)) {
+        return "--";
+    }
+
     if (ms < 1000) {
         return `${Math.round(ms)} ms`;
     }
 
     return `${(ms / 1000).toFixed(2)} s`;
+}
+
+function yesNo(value?: boolean): string {
+    if (typeof value !== "boolean") {
+        return "-";
+    }
+
+    return value ? "sim" : "não";
 }
 
 export default function ChatPanel() {
@@ -27,6 +44,13 @@ export default function ChatPanel() {
 
     const [prompt, setPrompt] = useState("");
     const [sending, setSending] = useState(false);
+
+    const [autoObjective, setAutoObjective] = useState("");
+    const [autoTestCommand, setAutoTestCommand] = useState("uv run python -m pytest -q");
+    const [autoIterations, setAutoIterations] = useState(3);
+    const [autoRunning, setAutoRunning] = useState(false);
+    const [autoReport, setAutoReport] = useState<AutoImplementReport | null>(null);
+    const [autoError, setAutoError] = useState("");
 
     const timerRef = useRef<number | null>(null);
     const startedAtRef = useRef(0);
@@ -93,32 +117,9 @@ export default function ChatPanel() {
             );
         }, 100);
 
-        let streamedAnswer = "";
-        let streamStarted = false;
-
         try {
-            const reply = await streamChat(
-                text,
-                (chunk) => {
-                    if (!streamStarted) {
-                        streamStarted = true;
-                        stopTimer();
-                    }
-
-                    streamedAnswer += chunk;
-
-                    setMessages(prev =>
-                        prev.map(message =>
-                            message.id === assistantId
-                                ? {
-                                    ...message,
-                                    text: streamedAnswer
-                                }
-                                : message
-                        )
-                    );
-                }
-            );
+            const reply = await sendChat(text);
+            const elapsed = performance.now() - startedAtRef.current;
 
             stopTimer();
 
@@ -133,6 +134,8 @@ export default function ChatPanel() {
                         : message
                 )
             );
+
+            void elapsed;
         } catch (error) {
             console.error("Falha ao obter resposta do ClawAI.", error);
 
@@ -150,6 +153,39 @@ export default function ChatPanel() {
             );
         } finally {
             setSending(false);
+        }
+    }
+
+    async function runAuto() {
+        const objective = autoObjective.trim();
+
+        if (!objective || autoRunning) {
+            return;
+        }
+
+        setAutoError("");
+        setAutoReport(null);
+        setAutoRunning(true);
+
+        try {
+            const report = await runAutoImplement(
+                objective,
+                autoTestCommand.trim() || "uv run python -m pytest -q",
+                autoIterations,
+                15
+            );
+
+            setAutoReport(report);
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Falha ao executar a auto-implementação.";
+
+            console.error(message, error);
+            setAutoError(message);
+        } finally {
+            setAutoRunning(false);
         }
     }
 
@@ -213,7 +249,7 @@ export default function ChatPanel() {
                             {m.text}
                         </div>
 
-                        {m.role === "assistant" && m.reply ? (
+                        {m.role === "assistant" && m.reply?.timings ? (
                             <div
                                 style={{
                                     marginTop: 6,
@@ -223,25 +259,25 @@ export default function ChatPanel() {
                                 }}
                             >
                                 <div>
-                                    Provider: {m.reply.provider} · Modelo: {m.reply.model}
+                                    Provider: {m.reply.provider ?? "-"} · Modelo: {m.reply.model ?? "-"}
                                 </div>
                                 <div>
-                                    Memória: {m.reply.used_memory ? "sim" : "não"} · Conhecimento: {m.reply.used_knowledge ? "sim" : "não"} · Web: {m.reply.requires_web ? "sim" : "não"}
+                                    Memória: {yesNo(m.reply.used_memory)} · Conhecimento: {yesNo(m.reply.used_knowledge)} · Web: {yesNo(m.reply.requires_web)}
                                 </div>
                                 <div>
-                                    Memória salva: {m.reply.memory_saved ? "sim" : "não"}
+                                    Memória salva: {yesNo(m.reply.memory_saved)}
                                 </div>
                                 <div>
-                                    Busca memória: {formatTime(m.reply.timings.search.memory_ms)}
+                                    Busca memória: {formatTime(m.reply.timings.search?.memory_ms)}
                                 </div>
                                 <div>
-                                    Busca conhecimento: {formatTime(m.reply.timings.search.knowledge_ms)}
+                                    Busca conhecimento: {formatTime(m.reply.timings.search?.knowledge_ms)}
                                 </div>
                                 <div>
-                                    Construção do prompt: {formatTime(m.reply.timings.search.prompt_ms)}
+                                    Construção do prompt: {formatTime(m.reply.timings.search?.prompt_ms)}
                                 </div>
                                 <div>
-                                    Busca total: {formatTime(m.reply.timings.search.total_ms)}
+                                    Busca total: {formatTime(m.reply.timings.search?.total_ms)}
                                 </div>
                                 <div>
                                     Modelo: {formatTime(m.reply.timings.model_ms)}
@@ -257,6 +293,231 @@ export default function ChatPanel() {
                     </div>
                 ))}
             </div>
+
+            <details
+                open
+                style={{
+                    padding: 12,
+                    borderTop: "1px solid #333",
+                    color: "#ddd"
+                }}
+            >
+                <summary
+                    style={{
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        marginBottom: 10
+                    }}
+                >
+                    Auto implementação
+                </summary>
+
+                <div
+                    style={{
+                        display: "grid",
+                        gap: 10
+                    }}
+                >
+                    <textarea
+                        rows={3}
+                        value={autoObjective}
+                        placeholder="Descreva o que o ClawAI deve implementar..."
+                        onChange={e => setAutoObjective(e.target.value)}
+                        style={{
+                            width: "100%",
+                            resize: "none",
+                            background: "#252526",
+                            color: "#ddd",
+                            border: "1px solid #444",
+                            borderRadius: 6,
+                            padding: 10,
+                            boxSizing: "border-box"
+                        }}
+                    />
+
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "1fr 110px",
+                            gap: 8
+                        }}
+                    >
+                        <input
+                            value={autoTestCommand}
+                            onChange={e => setAutoTestCommand(e.target.value)}
+                            placeholder="uv run python -m pytest -q"
+                            style={{
+                                width: "100%",
+                                background: "#252526",
+                                color: "#ddd",
+                                border: "1px solid #444",
+                                borderRadius: 6,
+                                padding: 10,
+                                boxSizing: "border-box"
+                            }}
+                        />
+
+                        <input
+                            type="number"
+                            min={1}
+                            max={5}
+                            value={autoIterations}
+                            onChange={e => setAutoIterations(Number(e.target.value) || 1)}
+                            title="Iterações"
+                            style={{
+                                width: "100%",
+                                background: "#252526",
+                                color: "#ddd",
+                                border: "1px solid #444",
+                                borderRadius: 6,
+                                padding: 10,
+                                boxSizing: "border-box"
+                            }}
+                        />
+                    </div>
+
+                    <button
+                        onClick={() => void runAuto()}
+                        disabled={autoRunning || !autoObjective.trim()}
+                        style={{
+                            width: "100%",
+                            height: 36,
+                            cursor: autoRunning ? "wait" : "pointer",
+                            opacity: autoRunning || !autoObjective.trim() ? 0.7 : 1
+                        }}
+                    >
+                        {autoRunning ? "Executando..." : "Auto implementar"}
+                    </button>
+
+                    {autoError ? (
+                        <div
+                            style={{
+                                fontSize: 12,
+                                color: "#ff8a80",
+                                whiteSpace: "pre-wrap"
+                            }}
+                        >
+                            {autoError}
+                        </div>
+                    ) : null}
+
+                    {autoReport ? (
+                        <div
+                            style={{
+                                fontSize: 11,
+                                color: "#9aa0a6",
+                                lineHeight: 1.45,
+                                maxHeight: 260,
+                                overflow: "auto",
+                                border: "1px solid #333",
+                                borderRadius: 6,
+                                padding: 10,
+                                background: "#1f1f1f"
+                            }}
+                        >
+                            <div>
+                                Resultado: {autoReport.success ? "sucesso" : "parcial"} · Tempo: {formatTime(autoReport.duration_ms)}
+                            </div>
+                            <div>
+                                Provider: {autoReport.provider} · Modelo: {autoReport.model}
+                            </div>
+                            <div>
+                                Teste: {autoReport.test_command}
+                            </div>
+                            <div>
+                                Resumo: {autoReport.summary}
+                            </div>
+                            <div>
+                                Arquivos candidatos: {autoReport.candidate_files.length}
+                            </div>
+
+                            {autoReport.candidate_files.length ? (
+                                <div style={{ marginTop: 6 }}>
+                                    <strong>Candidatos</strong>
+                                    <div style={{ whiteSpace: "pre-wrap" }}>
+                                        {autoReport.candidate_files.slice(0, 12).join(", ")}
+                                        {autoReport.candidate_files.length > 12 ? " ..." : ""}
+                                    </div>
+                                </div>
+                            ) : null}
+
+                            <div style={{ marginTop: 8 }}>
+                                <strong>Iterações</strong>
+                            </div>
+
+                            {autoReport.iterations.map(iteration => (
+                                <details
+                                    key={iteration.iteration}
+                                    style={{
+                                        marginTop: 8,
+                                        border: "1px solid #333",
+                                        borderRadius: 6,
+                                        padding: 8,
+                                        background: "#242424"
+                                    }}
+                                >
+                                    <summary style={{ cursor: "pointer" }}>
+                                        Iteração {iteration.iteration} · {" "}
+                                        {iteration.test?.success ? "teste ok" : "teste falhou"}
+                                    </summary>
+
+                                    <div style={{ marginTop: 8 }}>
+                                        <div>
+                                            Resumo: {iteration.summary}
+                                        </div>
+
+                                        <div style={{ marginTop: 6 }}>
+                                            Alterações: {iteration.changes.length}
+                                        </div>
+
+                                        {iteration.changes.length ? (
+                                            <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                                                {iteration.changes.map(change => (
+                                                    <li key={`${iteration.iteration}-${change.path}`}>
+                                                        {change.path} · {change.status} · {change.bytes_written} bytes
+                                                        {change.backup_path ? ` · backup: ${change.backup_path}` : ""}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : null}
+
+                                        {iteration.test ? (
+                                            <details style={{ marginTop: 8 }}>
+                                                <summary style={{ cursor: "pointer" }}>
+                                                    Teste {iteration.test.success ? "ok" : "falhou"} · {formatTime(iteration.test.duration_ms)}
+                                                </summary>
+
+                                                <div
+                                                    style={{
+                                                        marginTop: 8,
+                                                        whiteSpace: "pre-wrap",
+                                                        maxHeight: 180,
+                                                        overflow: "auto"
+                                                    }}
+                                                >
+                                                    <div>Return code: {iteration.test.return_code}</div>
+                                                    <div style={{ marginTop: 6 }}>
+                                                        STDOUT:
+                                                    </div>
+                                                    <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                                                        {iteration.test.stdout || "(vazio)"}
+                                                    </pre>
+                                                    <div style={{ marginTop: 6 }}>
+                                                        STDERR:
+                                                    </div>
+                                                    <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
+                                                        {iteration.test.stderr || "(vazio)"}
+                                                    </pre>
+                                                </div>
+                                            </details>
+                                        ) : null}
+                                    </div>
+                                </details>
+                            ))}
+                        </div>
+                    ) : null}
+                </div>
+            </details>
 
             <div
                 style={{

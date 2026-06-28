@@ -1,173 +1,96 @@
 ﻿import axios from "axios";
 import type { TreeNode } from "./tree";
 
-const API_BASE_URL = "http://127.0.0.1:8000/api";
-
 const api = axios.create({
-    baseURL: API_BASE_URL
+    baseURL: "http://127.0.0.1:8000/api"
 });
 
 export type SearchTimings = {
-    memory_ms: number;
-    knowledge_ms: number;
-    prompt_ms: number;
-    total_ms: number;
+    memory_ms?: number;
+    knowledge_ms?: number;
+    prompt_ms?: number;
+    total_ms?: number;
 };
 
 export type ChatTimings = {
-    search: SearchTimings;
-    model_ms: number;
-    postprocess_ms: number;
-    total_ms: number;
+    search?: SearchTimings;
+    model_ms?: number;
+    postprocess_ms?: number;
+    total_ms?: number;
 };
 
 export type ChatReply = {
     answer: string;
-    used_memory: boolean;
-    used_knowledge: boolean;
-    requires_web: boolean;
+    used_memory?: boolean;
+    used_knowledge?: boolean;
+    requires_web?: boolean;
+    provider?: string;
+    model?: string;
+    memory_saved?: boolean;
+    timings?: ChatTimings;
+};
+
+export type AutoImplementChange = {
+    path: string;
+    status: string;
+    bytes_written: number;
+    backup_path?: string | null;
+};
+
+export type AutoImplementTestReport = {
+    command: string;
+    success: boolean;
+    return_code: number;
+    stdout: string;
+    stderr: string;
+    duration_ms: number;
+};
+
+export type AutoImplementIteration = {
+    iteration: number;
+    summary: string;
+    changes: AutoImplementChange[];
+    test?: AutoImplementTestReport | null;
+};
+
+export type AutoImplementReport = {
+    objective: string;
+    summary: string;
     provider: string;
     model: string;
-    memory_saved: boolean;
-    timings: ChatTimings;
+    candidate_files: string[];
+    iterations: AutoImplementIteration[];
+    success: boolean;
+    test_command: string;
+    duration_ms: number;
 };
-
-type SseFrame = {
-    event: string;
-    data: any;
-};
-
-function parseSseFrame(frame: string): SseFrame {
-    let event = "message";
-    const dataLines: string[] = [];
-
-    for (const rawLine of frame.split(/\r?\n/)) {
-        const line = rawLine.trimEnd();
-
-        if (line.startsWith("event:")) {
-            event = line.slice(6).trim();
-            continue;
-        }
-
-        if (line.startsWith("data:")) {
-            dataLines.push(line.slice(5).trimStart());
-        }
-    }
-
-    const dataText = dataLines.join("\n");
-
-    if (!dataText) {
-        return { event, data: {} };
-    }
-
-    try {
-        return {
-            event,
-            data: JSON.parse(dataText)
-        };
-    } catch {
-        return {
-            event,
-            data: { text: dataText }
-        };
-    }
-}
 
 export async function sendChat(prompt: string): Promise<ChatReply> {
     const response = await api.post("/chat", {
         prompt
     });
 
+    if (typeof response.data === "string") {
+        return { answer: response.data };
+    }
+
     return response.data as ChatReply;
 }
 
-export async function streamChat(
-    prompt: string,
-    onDelta: (chunk: string) => void,
-): Promise<ChatReply> {
-    const response = await fetch(
-        `${API_BASE_URL}/chat/stream`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "text/event-stream"
-            },
-            body: JSON.stringify({
-                prompt
-            })
-        }
-    );
+export async function runAutoImplement(
+    objective: string,
+    testCommand = "uv run python -m pytest -q",
+    maxIterations = 3,
+    maxFiles = 15
+): Promise<AutoImplementReport> {
+    const response = await api.post("/auto/implement", {
+        objective,
+        test_command: testCommand,
+        max_iterations: maxIterations,
+        max_files: maxFiles
+    });
 
-    if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        throw new Error(body || `HTTP ${response.status}`);
-    }
-
-    if (!response.body) {
-        throw new Error("Streaming não disponível no navegador.");
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-
-    let buffer = "";
-    let reply: ChatReply | null = null;
-
-    while (true) {
-        const { value, done } = await reader.read();
-
-        if (done) {
-            break;
-        }
-
-        buffer += decoder.decode(value, { stream: true });
-
-        while (true) {
-            const separator = buffer.indexOf("\n\n");
-
-            if (separator === -1) {
-                break;
-            }
-
-            const frame = buffer.slice(0, separator);
-            buffer = buffer.slice(separator + 2);
-
-            if (!frame.trim()) {
-                continue;
-            }
-
-            const parsed = parseSseFrame(frame);
-
-            if (parsed.event === "delta") {
-                const chunk = String(parsed.data?.text ?? "");
-
-                if (chunk) {
-                    onDelta(chunk);
-                }
-                continue;
-            }
-
-            if (parsed.event === "final") {
-                reply = parsed.data.reply as ChatReply;
-                continue;
-            }
-
-            if (parsed.event === "error") {
-                const message = String(
-                    parsed.data?.message ?? "Erro no streaming."
-                );
-
-                throw new Error(message);
-            }
-        }
-    }
-
-    if (!reply) {
-        throw new Error("A resposta terminou sem evento final.");
-    }
-
-    return reply;
+    return response.data as AutoImplementReport;
 }
 
 export async function loadTree(path = ""): Promise<TreeNode[]> {
