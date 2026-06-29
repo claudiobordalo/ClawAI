@@ -30,6 +30,47 @@ export type ChatReply = {
     timings?: ChatTimings;
 };
 
+export type VerifyStep = {
+    name: string;
+    command: string;
+    success: boolean;
+    return_code: number;
+    duration_ms: number;
+    stdout?: string;
+    stderr?: string;
+    skipped?: boolean;
+    note?: string | null;
+};
+
+export type VerifyReport = {
+    status?: string;
+    started_at?: string;
+    finished_at?: string;
+    duration_ms?: number;
+    steps?: VerifyStep[];
+    tests_total?: number | null;
+    tests_passed?: number | null;
+    tests_failed?: number | null;
+    tests_skipped?: number | null;
+    tests_errors?: number | null;
+    warnings?: number | null;
+    api_health_ok?: boolean | null;
+    api_chat_ok?: boolean | null;
+    api_tree_ok?: boolean | null;
+    api_file_ok?: boolean | null;
+    api_answer_preview?: string | null;
+};
+
+export type VerifyResponse = {
+    success: boolean;
+    return_code: number;
+    stdout: string;
+    stderr: string;
+    report?: VerifyReport | string | null;
+    report_text?: string | null;
+    report_data?: VerifyReport | null;
+};
+
 export type AutoImplementChange = {
     path: string;
     status: string;
@@ -46,12 +87,26 @@ export type AutoImplementTestReport = {
     duration_ms: number;
 };
 
+export type AutoImplementVerifyReport = {
+    command: string;
+    success: boolean;
+    return_code: number;
+    stdout: string;
+    stderr: string;
+    report_text: string;
+    report_data: VerifyReport | Record<string, unknown>;
+    summary: string;
+    timestamp: string;
+    duration_ms: number;
+};
+
 export type AutoImplementIteration = {
     iteration: number;
     summary: string;
     changes: AutoImplementChange[];
     test?: AutoImplementTestReport | null;
     verify?: AutoImplementVerifyReport | null;
+
 };
 
 export type AutoImplementVerifyReport = {
@@ -77,11 +132,13 @@ export type AutoImplementReport = {
     success: boolean;
     test_command: string;
     duration_ms: number;
-    verify_success?: boolean;
-    verify_return_code?: number;
-    verify_report?: string;
-    verify_summary?: string;
-    verify_timestamp?: string;
+
+    verify_success?: boolean | null;
+    verify_return_code?: number | null;
+    verify_summary?: string | null;
+    verify_timestamp?: string | null;
+    verify_report?: string | null;
+    verify_report_data?: VerifyReport | Record<string, unknown> | null;
 };
 
 export type AutoImplementEvent = {
@@ -113,6 +170,12 @@ export type AutoImplementSession = {
     summary: string;
     events: AutoImplementEvent[];
     result?: AutoImplementReport | null;
+    verify_success?: boolean | null;
+    verify_return_code?: number | null;
+    verify_summary?: string | null;
+    verify_timestamp?: string | null;
+    verify_report?: string | null;
+    verify_report_data?: VerifyReport | Record<string, unknown> | null;
 };
 
 export async function sendChat(prompt: string): Promise<ChatReply> {
@@ -230,3 +293,10 @@ export async function saveFile(
         }
     );
 }
+
+
+export async function runVerify(): Promise<VerifyResponse> {
+    const response = await api.post("/verify");
+    return response.data as VerifyResponse;
+}
+

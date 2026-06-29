@@ -37,6 +37,22 @@ function yesNo(value?: boolean): string {
     return value ? "sim" : "não";
 }
 
+function formatVerifyReport(value?: string | Record<string, unknown> | null): string {
+    if (typeof value === "string") {
+        return value;
+    }
+
+    if (value && typeof value === "object") {
+        try {
+            return JSON.stringify(value, null, 2);
+        } catch {
+            return String(value);
+        }
+    }
+
+    return "";
+}
+
 export default function ChatPanel() {
     const [messages, setMessages] = useState<Message[]>([
         {
@@ -665,6 +681,36 @@ export default function ChatPanel() {
                             <div>
                                 Arquivos candidatos: {autoReport.candidate_files.length}
                             </div>
+
+                            {typeof autoReport.verify_success === "boolean" ? (
+                                <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #333" }}>
+                                    <strong>Verify</strong>
+                                    <div>
+                                        Status: {autoReport.verify_success ? "PASS" : "FAIL"}
+                                    </div>
+                                    <div>
+                                        Return code: {autoReport.verify_return_code ?? "-"}
+                                    </div>
+                                    {autoReport.verify_summary ? (
+                                        <div>
+                                            Resumo: {autoReport.verify_summary}
+                                        </div>
+                                    ) : null}
+                                    {autoReport.verify_timestamp ? (
+                                        <div>
+                                            Timestamp: {autoReport.verify_timestamp}
+                                        </div>
+                                    ) : null}
+                                    {(autoReport.verify_report || autoReport.verify_report_data) ? (
+                                        <details style={{ marginTop: 6 }}>
+                                            <summary style={{ cursor: "pointer" }}>Relatório</summary>
+                                            <pre style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>
+                                                {formatVerifyReport(autoReport.verify_report_data ?? autoReport.verify_report)}
+                                            </pre>
+                                        </details>
+                                    ) : null}
+                                </div>
+                            ) : null}
 
                             {autoReport.candidate_files.length ? (
                                 <div style={{ marginTop: 6 }}>

@@ -44,19 +44,6 @@ def _payload(result: object) -> dict[str, object]:
     return {"answer": str(result)}
 
 
-def _read_verify_report() -> tuple[str, dict[str, object] | None]:
-    report_path = ROOT / "verify_report.json"
-    if not report_path.exists():
-        return "", None
-
-    report_text = report_path.read_text(encoding="utf-8", errors="ignore")
-    try:
-        report_json = json.loads(report_text)
-    except Exception:
-        report_json = None
-    return report_text, report_json
-
-
 app = FastAPI(title="ClawAI API")
 
 app.add_middleware(
@@ -138,11 +125,17 @@ def auto_implement_status(run_id: str):
     try:
         session = auto_implement.get_status(run_id)
         payload = asdict(session)
-        payload["verify_success"] = session.result.verify_success if session.result else None
-        payload["verify_return_code"] = session.result.verify_return_code if session.result else None
-        payload["verify_report"] = session.result.verify_report if session.result else ""
-        payload["verify_summary"] = session.result.verify_summary if session.result else ""
-        payload["verify_timestamp"] = session.result.verify_timestamp if session.result else ""
+
+        payload["verify_success"] = (
+            session.result.verify_success if session.result else None
+        )
+        payload["verify_return_code"] = (
+            session.result.verify_return_code if session.result else None
+        )
+        payload["verify_report"] = (
+            session.result.verify_report if session.result else ""
+        )
+
         return payload
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Run not found") from exc
@@ -242,5 +235,42 @@ def save_file(data: dict):
     target.write_text(str(data["content"]), encoding="utf-8")
     return {"success": True}
 
+@app.post("/api/verify")
+def verify():
 
-app.include_router(tools_router, prefix="/api")
+    process = subprocess.run(
+        [
+            sys.executable,
+            "verify.py",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    report = ROOT / "verify_report.json"
+
+    if report.exists():
+
+        return {
+            "success": process.returncode == 0,
+            "return_code": process.returncode,
+            "stdout": process.stdout,
+            "stderr": process.stderr,
+            "report": report.read_text(
+                encoding="utf-8",
+            ),
+        }
+
+    return {
+        "success": False,
+        "return_code": process.returncode,
+        "stdout": process.stdout,
+        "stderr": process.stderr,
+        "report": None,
+    }
+
+app.include_router(
+    tools_router,
+    prefix="/api",
+)
