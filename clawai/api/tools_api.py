@@ -3,10 +3,12 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from clawai.api.autonomy_api import router as autonomy_router
+from clawai.api.bridge_api import router as bridge_router
 from clawai.tools.registry import tool_registry
 
 router = APIRouter()
 router.include_router(autonomy_router)
+router.include_router(bridge_router)
 
 
 @router.get("/tools")
