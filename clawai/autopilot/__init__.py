@@ -1,4 +1,4 @@
-from .auto_implement_service import (
+from .auto_implement_runtime import (
     AutoImplementChange,
     AutoImplementEvent,
     AutoImplementIteration,
@@ -6,6 +6,7 @@ from .auto_implement_service import (
     AutoImplementSession,
     AutoImplementService,
     AutoImplementTestReport,
+    AutoImplementVerifyReport,
     auto_implement,
 )
 
@@ -17,5 +18,6 @@ __all__ = [
     "AutoImplementSession",
     "AutoImplementService",
     "AutoImplementTestReport",
+    "AutoImplementVerifyReport",
     "auto_implement",
 ]
