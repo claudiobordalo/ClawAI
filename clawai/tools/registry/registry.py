@@ -41,3 +41,5 @@ class ToolRegistry:
     ) -> list[Tool]:
 
         return list(self._tools.values())
+
+tool_registry = ToolRegistry()

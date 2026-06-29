@@ -109,19 +109,6 @@ export type AutoImplementIteration = {
 
 };
 
-export type AutoImplementVerifyReport = {
-    command: string;
-    success: boolean;
-    return_code: number;
-    stdout: string;
-    stderr: string;
-    duration_ms: number;
-    report_json?: Record<string, unknown> | null;
-    report_text?: string;
-    summary?: string;
-    timestamp?: string;
-};
-
 export type AutoImplementReport = {
     objective: string;
     summary: string;
@@ -246,14 +233,14 @@ export async function stopAutoImplement(
     return response.data as AutoImplementSession;
 }
 
-export type VerifyResponse = {
-    success: boolean;
-    return_code: number;
-    stdout: string;
-    stderr: string;
-    report_text?: string | null;
-    report?: Record<string, unknown> | null;
-};
+// export type VerifyResponse = {
+//     success: boolean;
+//     return_code: number;
+//     stdout: string;
+//     stderr: string;
+//     report_text?: string | null;
+//     report?: Record<string, unknown> | null;
+// };
 
 export async function runVerify(): Promise<VerifyResponse> {
     const response = await api.post(`/verify`);
@@ -292,11 +279,5 @@ export async function saveFile(
             content
         }
     );
-}
-
-
-export async function runVerify(): Promise<VerifyResponse> {
-    const response = await api.post("/verify");
-    return response.data as VerifyResponse;
 }
 
