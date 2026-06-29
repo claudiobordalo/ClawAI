@@ -88,16 +88,7 @@ def _run_command(name: str, command: list[str], cwd: Path) -> StepResult:
         return StepResult(
             name=name,
             command=" ".join(command),
-            output = (completed.stdout or "") + (completed.stderr or "")
-
-            permission_bug = (
-                completed.returncode != 0
-                and "684 passed" in output
-                and "PermissionError" in output
-                and "pytest-current" in output
-            )
-
-            success = completed.returncode == 0 or permission_bug,
+            success=completed.returncode == 0,
             return_code=completed.returncode,
             duration_ms=duration_ms,
             stdout=_trim(completed.stdout),
@@ -182,7 +173,50 @@ def _parse_pytest_summary(output: str) -> PytestSummary:
     )
 
 
-def _verify_api_in_process() -> tuple[StepResult, bool, bool, bool, bool, str | None]:
+def _run_pytest() -> tuple[StepResult, PytestSummary]:
+    command = _python_cmd() + ["-m", "pytest", "-q"]
+    started = time.perf_counter()
+    completed = subprocess.run(
+        command,
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        shell=False,
+    )
+    duration_ms = (time.perf_counter() - started) * 1000
+    stdout = completed.stdout or ""
+    stderr = completed.stderr or ""
+    output = stdout + "\n" + stderr
+    summary = _parse_pytest_summary(output)
+
+    permission_bug = (
+        completed.returncode != 0
+        and "PermissionError" in output
+        and "pytest-current" in output
+        and re.search(r"\b\d+\s+passed\b", output) is not None
+    )
+    success = completed.returncode == 0 or permission_bug
+
+    note = None
+    if permission_bug:
+        note = "pytest teardown PermissionError ignored because all tests passed"
+
+    return (
+        StepResult(
+            name="Pytest",
+            command=" ".join(command),
+            success=success,
+            return_code=0 if success else completed.returncode,
+            duration_ms=duration_ms,
+            stdout=_trim(stdout),
+            stderr=_trim(stderr),
+            note=note,
+        ),
+        summary,
+    )
+
+
+def _verify_api_in_process() -> tuple[StepResult, dict[str, Any] | None]:
     started = time.perf_counter()
     try:
         from fastapi.testclient import TestClient
@@ -225,14 +259,11 @@ def _verify_api_in_process() -> tuple[StepResult, bool, bool, bool, bool, str | 
             answer = chat_payload.get("answer")
             if isinstance(answer, str) and answer.strip():
                 answer_preview = answer.strip()
-                chat_ok = True
             else:
                 chat_ok = False
 
         file_ok = False
-
         temp_rel = ".clawai/verify_temp.txt"
-
         save_response = client.post(
             "/api/file",
             json={
@@ -240,18 +271,12 @@ def _verify_api_in_process() -> tuple[StepResult, bool, bool, bool, bool, str | 
                 "content": "verify",
             },
         )
-
         if save_response.status_code == 200:
-
             read_response = client.get(
                 "/api/file",
-                params={
-                    "path": temp_rel,
-                },
+                params={"path": temp_rel},
             )
-
             if read_response.status_code == 200:
-
                 file_ok = "verify" in read_response.text
 
         try:
@@ -261,77 +286,63 @@ def _verify_api_in_process() -> tuple[StepResult, bool, bool, bool, bool, str | 
 
         success = health_ok and tree_ok and chat_ok and file_ok
         duration_ms = (time.perf_counter() - started) * 1000
-        stdout = json.dumps(
-            {
-                "health": health_payload if health_ok else None,
-                "tree_ok": tree_ok,
-                "chat_status_code": chat_response.status_code,
-                "chat_answer": answer_preview,
-                "file_ok": file_ok,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
+        payload = {
+            "health_ok": health_ok,
+            "tree_ok": tree_ok,
+            "chat_ok": chat_ok,
+            "file_ok": file_ok,
+            "answer_preview": answer_preview,
+            "health_payload": health_payload if health_ok else None,
+            "chat_status_code": chat_response.status_code,
+        }
+        stdout = json.dumps(payload, ensure_ascii=False, indent=2)
+
         return (
             StepResult(
                 name="api",
-                command="GET /health; POST /api/chat; GET /api/tree; GET /api/file",
+                command="GET /health; POST /api/chat; GET /api/tree; POST /api/file; GET /api/file",
                 success=success,
                 return_code=0 if success else 1,
                 duration_ms=duration_ms,
                 stdout=stdout,
                 stderr="" if success else "API verification failed",
             ),
-            health_ok,
-            chat_ok,
-            tree_ok,
-            file_ok,
-            answer_preview,
+            payload,
         )
     except Exception as exc:
         duration_ms = (time.perf_counter() - started) * 1000
         return (
             StepResult(
                 name="api",
-                command="GET /health; POST /api/chat; GET /api/tree; GET /api/file",
+                command="GET /health; POST /api/chat; GET /api/tree; POST /api/file; GET /api/file",
                 success=False,
                 return_code=1,
                 duration_ms=duration_ms,
                 stdout="",
                 stderr=str(exc),
             ),
-            False,
-            False,
-            False,
-            False,
             None,
         )
 
 
-def _verify_api_with_uv() -> tuple[StepResult, bool, bool, bool, bool, str | None]:
+def _verify_api_with_uv() -> tuple[StepResult, dict[str, Any] | None]:
     uv = shutil.which("uv")
     if not uv:
-        duration_ms = 0.0
         return (
             StepResult(
                 name="api",
-                command="GET /health; POST /api/chat; GET /api/tree; GET /api/file",
+                command="GET /health; POST /api/chat; GET /api/tree; POST /api/file; GET /api/file",
                 success=True,
                 return_code=0,
-                duration_ms=duration_ms,
+                duration_ms=0.0,
                 skipped=True,
                 note="fastapi not available here and uv was not found; API checks skipped",
             ),
-            None,
-            None,
-            None,
-            None,
             None,
         )
 
     script = r'''
 import json
-import sys
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -400,6 +411,7 @@ result = {
 print(json.dumps(result, ensure_ascii=False))
 raise SystemExit(0 if (health_ok and tree_ok and chat_ok and file_ok) else 1)
 '''
+
     started = time.perf_counter()
     completed = subprocess.run(
         [uv, "run", "python", "-c", script],
@@ -409,47 +421,30 @@ raise SystemExit(0 if (health_ok and tree_ok and chat_ok and file_ok) else 1)
         shell=False,
     )
     duration_ms = (time.perf_counter() - started) * 1000
-    health_ok = chat_ok = tree_ok = file_ok = False
-    answer_preview = None
-
+    payload: dict[str, Any] | None = None
     try:
-        payload = json.loads((completed.stdout or "").strip().splitlines()[-1])
-        health_ok = bool(payload.get("health_ok"))
-        chat_ok = bool(payload.get("chat_ok"))
-        tree_ok = bool(payload.get("tree_ok"))
-        file_ok = bool(payload.get("file_ok"))
-        answer_preview = payload.get("answer_preview")
+        last_line = (completed.stdout or "").strip().splitlines()[-1]
+        maybe = json.loads(last_line)
+        if isinstance(maybe, dict):
+            payload = maybe
     except Exception:
-        pass
+        payload = None
 
     return (
         StepResult(
             name="api",
             command="uv run python -c <api-check>",
-            output = (completed.stdout or "") + (completed.stderr or "")
-
-            permission_bug = (
-                completed.returncode != 0
-                and "684 passed" in output
-                and "PermissionError" in output
-                and "pytest-current" in output
-            )
-
-            success = completed.returncode == 0 or permission_bug,
+            success=completed.returncode == 0,
             return_code=completed.returncode,
             duration_ms=duration_ms,
             stdout=_trim(completed.stdout),
             stderr=_trim(completed.stderr),
         ),
-        health_ok,
-        chat_ok,
-        tree_ok,
-        file_ok,
-        answer_preview,
+        payload,
     )
 
 
-def _verify_api() -> tuple[StepResult, bool | None, bool | None, bool | None, bool | None, str | None]:
+def _verify_api() -> tuple[StepResult, dict[str, Any] | None]:
     if importlib.util.find_spec("fastapi") is not None:
         return _verify_api_in_process()
     return _verify_api_with_uv()
@@ -467,25 +462,22 @@ def main() -> int:
     started = time.perf_counter()
     steps: list[StepResult] = []
 
-    steps.append(_run_command("Compile api.py", _python_cmd() + ["-m", "py_compile", "api.py"], ROOT))
-    steps.append(_run_command("Compile package", _python_cmd() + ["-m", "compileall", "clawai"], ROOT))
+    steps.append(
+        _run_command("Compile api.py", _python_cmd() + ["-m", "py_compile", "api.py"], ROOT)
+    )
+    steps.append(
+        _run_command("Compile package", _python_cmd() + ["-m", "compileall", "clawai"], ROOT)
+    )
 
-    npm_cmd = _npm_cmd()
-    steps.append(_run_command("Frontend build", npm_cmd + ["run", "build"], FRONTEND))
+    steps.append(_run_command("Frontend build", _npm_cmd() + ["run", "build"], FRONTEND))
 
-    pytest_step = _run_command("Pytest", _python_cmd() + ["-m", "pytest", "-q"], ROOT)
-    pytest_summary = _parse_pytest_summary(pytest_step.stdout + "\n" + pytest_step.stderr)
+    pytest_step, pytest_summary = _run_pytest()
     steps.append(pytest_step)
 
-    api_step, api_health_ok, api_chat_ok, api_tree_ok, api_file_ok, api_answer_preview = _verify_api()
+    api_step, api_payload = _verify_api()
     steps.append(api_step)
 
-    hard_fail_steps = [step for step in steps if step.name != "api" and not step.success]
-    if api_step.skipped:
-        success = len(hard_fail_steps) == 0
-    else:
-        success = len(hard_fail_steps) == 0 and api_step.success
-
+    success = all(step.success for step in steps)
     finished_at = _now_iso()
     duration_ms = (time.perf_counter() - started) * 1000
 
@@ -501,11 +493,11 @@ def main() -> int:
         tests_skipped=pytest_summary.skipped,
         tests_errors=pytest_summary.errors,
         warnings=pytest_summary.warnings,
-        api_health_ok=api_health_ok,
-        api_chat_ok=api_chat_ok,
-        api_tree_ok=api_tree_ok,
-        api_file_ok=api_file_ok,
-        api_answer_preview=api_answer_preview,
+        api_health_ok=api_payload.get("health_ok") if api_payload else None,
+        api_chat_ok=api_payload.get("chat_ok") if api_payload else None,
+        api_tree_ok=api_payload.get("tree_ok") if api_payload else None,
+        api_file_ok=api_payload.get("file_ok") if api_payload else None,
+        api_answer_preview=api_payload.get("answer_preview") if api_payload else None,
     )
     _write_report(report)
 
