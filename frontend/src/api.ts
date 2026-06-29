@@ -106,7 +106,6 @@ export type AutoImplementIteration = {
     changes: AutoImplementChange[];
     test?: AutoImplementTestReport | null;
     verify?: AutoImplementVerifyReport | null;
-
 };
 
 export type AutoImplementReport = {
@@ -119,13 +118,22 @@ export type AutoImplementReport = {
     success: boolean;
     test_command: string;
     duration_ms: number;
-
     verify_success?: boolean | null;
     verify_return_code?: number | null;
     verify_summary?: string | null;
     verify_timestamp?: string | null;
     verify_report?: string | null;
     verify_report_data?: VerifyReport | Record<string, unknown> | null;
+    git_enabled?: boolean | null;
+    git_base_branch?: string | null;
+    git_branch?: string | null;
+    git_snapshot_commit?: string | null;
+    git_commit?: string | null;
+    git_commit_success?: boolean | null;
+    git_commit_message?: string | null;
+    git_rollback_performed?: boolean | null;
+    git_rollback_reason?: string | null;
+    git_dirty_snapshot?: boolean | null;
 };
 
 export type AutoImplementEvent = {
@@ -163,6 +171,16 @@ export type AutoImplementSession = {
     verify_timestamp?: string | null;
     verify_report?: string | null;
     verify_report_data?: VerifyReport | Record<string, unknown> | null;
+    git_enabled?: boolean | null;
+    git_base_branch?: string | null;
+    git_branch?: string | null;
+    git_snapshot_commit?: string | null;
+    git_commit?: string | null;
+    git_commit_success?: boolean | null;
+    git_commit_message?: string | null;
+    git_rollback_performed?: boolean | null;
+    git_rollback_reason?: string | null;
+    git_dirty_snapshot?: boolean | null;
 };
 
 export async function sendChat(prompt: string): Promise<ChatReply> {
@@ -233,17 +251,8 @@ export async function stopAutoImplement(
     return response.data as AutoImplementSession;
 }
 
-// export type VerifyResponse = {
-//     success: boolean;
-//     return_code: number;
-//     stdout: string;
-//     stderr: string;
-//     report_text?: string | null;
-//     report?: Record<string, unknown> | null;
-// };
-
 export async function runVerify(): Promise<VerifyResponse> {
-    const response = await api.post(`/verify`);
+    const response = await api.post("/verify");
     return response.data as VerifyResponse;
 }
 
@@ -280,4 +289,3 @@ export async function saveFile(
         }
     );
 }
-
