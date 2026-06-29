@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
@@ -7,9 +10,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from clawai.api.tools_api import router as tools_router
 from clawai.autopilot import auto_implement
 from clawai.chat.chat_service import chat
-from clawai.api.tools_api import router as tools_router
 
 ROOT = Path(__file__).resolve().parent
 
@@ -46,6 +49,23 @@ def _payload(result: object) -> dict[str, object]:
     return {"answer": str(result)}
 
 
+def _read_verify_report() -> tuple[str | None, dict[str, object] | None]:
+    report_path = ROOT / "verify_report.json"
+    if not report_path.exists():
+        return None, None
+
+    report_text = report_path.read_text(encoding="utf-8", errors="ignore")
+    try:
+        parsed = json.loads(report_text)
+    except Exception:
+        parsed = None
+
+    if isinstance(parsed, dict):
+        return report_text, parsed
+
+    return report_text, None
+
+
 app = FastAPI(title="ClawAI API")
 
 app.add_middleware(
@@ -73,6 +93,7 @@ class AutoImplementStatusRequest(BaseModel):
     test_command: str = "uv run python -m pytest -q"
     max_iterations: int = Field(default=3, ge=1, le=5)
     max_files: int = Field(default=15, ge=1, le=20)
+
 
 @app.get("/health")
 def health():
@@ -138,16 +159,14 @@ def auto_implement_status(
     try:
         session = auto_implement.get_status(run_id)
         payload = asdict(session)
+        result = session.result
 
-        payload["verify_success"] = (
-            session.result.verify_success if session.result else None
-        )
-        payload["verify_return_code"] = (
-            session.result.verify_return_code if session.result else None
-        )
-        payload["verify_report"] = (
-            session.result.verify_report if session.result else ""
-        )
+        payload["verify_success"] = result.verify_success if result else None
+        payload["verify_return_code"] = result.verify_return_code if result else None
+        payload["verify_summary"] = result.verify_summary if result else ""
+        payload["verify_timestamp"] = result.verify_timestamp if result else ""
+        payload["verify_report"] = result.verify_report if result else ""
+        payload["verify_report_data"] = result.verify_report_data if result else {}
 
         return payload
     except KeyError as exc:
@@ -289,40 +308,28 @@ def save_file(data: dict):
     target.write_text(str(data["content"]), encoding="utf-8")
     return {"success": True}
 
+
 @app.post("/api/verify")
 def verify():
-
     process = subprocess.run(
-        [
-            sys.executable,
-            "verify.py",
-        ],
+        [sys.executable, "verify.py"],
         cwd=ROOT,
         capture_output=True,
         text=True,
     )
 
-    report = ROOT / "verify_report.json"
-
-    if report.exists():
-
-        return {
-            "success": process.returncode == 0,
-            "return_code": process.returncode,
-            "stdout": process.stdout,
-            "stderr": process.stderr,
-            "report": report.read_text(
-                encoding="utf-8",
-            ),
-        }
+    report_text, report_data = _read_verify_report()
 
     return {
-        "success": False,
+        "success": process.returncode == 0,
         "return_code": process.returncode,
         "stdout": process.stdout,
         "stderr": process.stderr,
-        "report": None,
+        "report": report_data if report_data is not None else report_text,
+        "report_text": report_text,
+        "report_data": report_data,
     }
+
 
 app.include_router(
     tools_router,
