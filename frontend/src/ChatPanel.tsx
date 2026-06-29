@@ -639,6 +639,30 @@ export default function ChatPanel() {
                                 Resumo: {autoReport.summary}
                             </div>
                             <div>
+                                Verify: {autoReport.verify_success === undefined || autoReport.verify_success === null ? "-" : autoReport.verify_success ? "PASS" : "FAIL"}
+                            </div>
+                            <div>
+                                Return code: {autoReport.verify_return_code ?? "-"}
+                            </div>
+                            {autoReport.verify_summary ? (
+                                <div>
+                                    Verify resumo: {autoReport.verify_summary}
+                                </div>
+                            ) : null}
+                            {autoReport.verify_timestamp ? (
+                                <div>
+                                    Verify timestamp: {autoReport.verify_timestamp}
+                                </div>
+                            ) : null}
+                            {autoReport.verify_report ? (
+                                <details style={{ marginTop: 6 }}>
+                                    <summary style={{ cursor: "pointer" }}>Verify report</summary>
+                                    <pre style={{ whiteSpace: "pre-wrap", marginTop: 6 }}>
+                                        {autoReport.verify_report}
+                                    </pre>
+                                </details>
+                            ) : null}
+                            <div>
                                 Arquivos candidatos: {autoReport.candidate_files.length}
                             </div>
 

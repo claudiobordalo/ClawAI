@@ -51,6 +51,20 @@ export type AutoImplementIteration = {
     summary: string;
     changes: AutoImplementChange[];
     test?: AutoImplementTestReport | null;
+    verify?: AutoImplementVerifyReport | null;
+};
+
+export type AutoImplementVerifyReport = {
+    command: string;
+    success: boolean;
+    return_code: number;
+    stdout: string;
+    stderr: string;
+    duration_ms: number;
+    report_json?: Record<string, unknown> | null;
+    report_text?: string;
+    summary?: string;
+    timestamp?: string;
 };
 
 export type AutoImplementReport = {
@@ -63,6 +77,11 @@ export type AutoImplementReport = {
     success: boolean;
     test_command: string;
     duration_ms: number;
+    verify_success?: boolean;
+    verify_return_code?: number;
+    verify_report?: string;
+    verify_summary?: string;
+    verify_timestamp?: string;
 };
 
 export type AutoImplementEvent = {
@@ -164,6 +183,20 @@ export async function stopAutoImplement(
     return response.data as AutoImplementSession;
 }
 
+export type VerifyResponse = {
+    success: boolean;
+    return_code: number;
+    stdout: string;
+    stderr: string;
+    report_text?: string | null;
+    report?: Record<string, unknown> | null;
+};
+
+export async function runVerify(): Promise<VerifyResponse> {
+    const response = await api.post(`/verify`);
+    return response.data as VerifyResponse;
+}
+
 export async function loadTree(path = ""): Promise<TreeNode[]> {
     const response = await api.get("/tree", {
         params: path ? { path } : undefined
@@ -196,17 +229,4 @@ export async function saveFile(
             content
         }
     );
-}
-
-
-export async function runVerify() {
-    const response = await fetch("/api/verify", {
-        method: "POST",
-    });
-
-    if (!response.ok) {
-        throw new Error("Falha ao executar verify.");
-    }
-
-    return await response.json();
 }

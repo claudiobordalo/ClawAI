@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
@@ -7,9 +10,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from clawai.api.tools_api import router as tools_router
 from clawai.autopilot import auto_implement
 from clawai.chat.chat_service import chat
-from clawai.api.tools_api import router as tools_router
 
 ROOT = Path(__file__).resolve().parent
 
@@ -26,24 +29,32 @@ IGNORED_NAMES = {
 
 def _resolve_path(path: str) -> Path:
     target = (ROOT / path).resolve()
-
     if target != ROOT and ROOT not in target.parents:
         raise HTTPException(status_code=400, detail="Invalid path")
-
     return target
 
 
 def _payload(result: object) -> dict[str, object]:
     if isinstance(result, str):
         return {"answer": result}
-
     if is_dataclass(result):
         return asdict(result)
-
     if isinstance(result, dict):
         return result
-
     return {"answer": str(result)}
+
+
+def _read_verify_report() -> tuple[str, dict[str, object] | None]:
+    report_path = ROOT / "verify_report.json"
+    if not report_path.exists():
+        return "", None
+
+    report_text = report_path.read_text(encoding="utf-8", errors="ignore")
+    try:
+        report_json = json.loads(report_text)
+    except Exception:
+        report_json = None
+    return report_text, report_json
 
 
 app = FastAPI(title="ClawAI API")
@@ -74,6 +85,7 @@ class AutoImplementStatusRequest(BaseModel):
     max_iterations: int = Field(default=3, ge=1, le=5)
     max_files: int = Field(default=15, ge=1, le=20)
 
+
 @app.get("/health")
 def health():
     return {
@@ -85,20 +97,12 @@ def health():
 
 
 @app.post("/api/chat")
-def chat_text(
-    request: ChatRequest,
-):
-    return _payload(
-        chat.ask(
-            prompt=request.prompt,
-        )
-    )
+def chat_text(request: ChatRequest):
+    return _payload(chat.ask(prompt=request.prompt))
 
 
 @app.post("/api/auto/implement")
-def auto_implement_route(
-    request: AutoImplementRequest,
-):
+def auto_implement_route(request: AutoImplementRequest):
     try:
         result = auto_implement.implement(
             objective=request.objective,
@@ -114,9 +118,7 @@ def auto_implement_route(
 
 
 @app.post("/api/auto/implement/start")
-def auto_implement_start(
-    request: AutoImplementRequest,
-):
+def auto_implement_start(request: AutoImplementRequest):
     try:
         session = auto_implement.start(
             objective=request.objective,
@@ -132,33 +134,22 @@ def auto_implement_start(
 
 
 @app.get("/api/auto/implement/status/{run_id}")
-def auto_implement_status(
-    run_id: str,
-):
+def auto_implement_status(run_id: str):
     try:
         session = auto_implement.get_status(run_id)
         payload = asdict(session)
-
-        payload["verify_success"] = (
-            session.result.verify_success if session.result else None
-        )
-        payload["verify_return_code"] = (
-            session.result.verify_return_code if session.result else None
-        )
-        payload["verify_report"] = (
-            session.result.verify_report if session.result else ""
-        )
-
+        payload["verify_success"] = session.result.verify_success if session.result else None
+        payload["verify_return_code"] = session.result.verify_return_code if session.result else None
+        payload["verify_report"] = session.result.verify_report if session.result else ""
+        payload["verify_summary"] = session.result.verify_summary if session.result else ""
+        payload["verify_timestamp"] = session.result.verify_timestamp if session.result else ""
         return payload
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Run not found") from exc
 
 
 @app.get("/api/auto/implement/events/{run_id}")
-def auto_implement_events(
-    run_id: str,
-    after: int = 0,
-):
+def auto_implement_events(run_id: str, after: int = 0):
     try:
         return [asdict(event) for event in auto_implement.list_events(run_id, after=after)]
     except KeyError as exc:
@@ -166,119 +157,81 @@ def auto_implement_events(
 
 
 @app.post("/api/auto/implement/stop/{run_id}")
-def auto_implement_stop(
-    run_id: str,
-):
+def auto_implement_stop(run_id: str):
     try:
         return asdict(auto_implement.stop(run_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Run not found") from exc
 
 
-@app.post("/api/chat/image")
-async def chat_image(
-    prompt: str = Form(...),
-    image: UploadFile = File(...),
-):
-    temp = ROOT / ".clawai" / "temp"
-
-    temp.mkdir(
-        parents=True,
-        exist_ok=True,
+@app.post("/api/verify")
+def verify_route():
+    completed = subprocess.run(
+        [sys.executable, "verify.py"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
     )
+    report_text, report_json = _read_verify_report()
+    return {
+        "success": completed.returncode == 0,
+        "return_code": completed.returncode,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+        "report_text": report_text,
+        "report": report_json,
+    }
 
+
+@app.post("/api/chat/image")
+async def chat_image(prompt: str = Form(...), image: UploadFile = File(...)):
+    temp = ROOT / ".clawai" / "temp"
+    temp.mkdir(parents=True, exist_ok=True)
     filename = Path(image.filename or "image.bin").name
     target = temp / filename
-    target.write_bytes(
-        await image.read()
-    )
-
-    return _payload(
-        chat.ask(
-            prompt=prompt,
-            file=str(target),
-        )
-    )
+    target.write_bytes(await image.read())
+    return _payload(chat.ask(prompt=prompt, file=str(target)))
 
 
 @app.post("/api/chat/file")
-async def chat_file(
-    prompt: str = Form(...),
-    file: UploadFile = File(...),
-):
+async def chat_file(prompt: str = Form(...), file: UploadFile = File(...)):
     temp = ROOT / ".clawai" / "temp"
-
-    temp.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
+    temp.mkdir(parents=True, exist_ok=True)
     filename = Path(file.filename or "arquivo").name
     target = temp / filename
-    target.write_bytes(
-        await file.read()
-    )
-
+    target.write_bytes(await file.read())
     suffix = target.suffix.lower()
-
-    if suffix in {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".webp",
-        ".bmp",
-    }:
-        return _payload(
-            chat.ask(
-                prompt=prompt,
-                file=str(target),
-            )
-        )
-
-    raise HTTPException(
-        status_code=415,
-        detail=f"Tipo de arquivo ainda não suportado: {suffix}",
-    )
+    if suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+        return _payload(chat.ask(prompt=prompt, file=str(target)))
+    raise HTTPException(status_code=415, detail=f"Tipo de arquivo ainda não suportado: {suffix}")
 
 
 @app.get("/api/tree")
 def tree(path: str = ""):
     directory = ROOT if not path else _resolve_path(path)
-
     if not directory.exists():
         raise HTTPException(status_code=404, detail="Folder not found")
-
     if not directory.is_dir():
         raise HTTPException(status_code=400, detail="Path is not a folder")
 
     items = []
-
-    for child in sorted(
-        directory.iterdir(),
-        key=lambda p: (not p.is_dir(), p.name.lower()),
-    ):
+    for child in sorted(directory.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
         if child.name in IGNORED_NAMES:
             continue
-
-        items.append(
-            {
-                "name": child.name,
-                "path": str(child.relative_to(ROOT)).replace("\\", "/"),
-                "directory": child.is_dir(),
-                "children": [],
-            }
-        )
-
+        items.append({
+            "name": child.name,
+            "path": str(child.relative_to(ROOT)).replace("\\", "/"),
+            "directory": child.is_dir(),
+            "children": [],
+        })
     return items
 
 
 @app.get("/api/file")
 def file(path: str):
     target = _resolve_path(path)
-
     if not target.exists() or not target.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-
     return target.read_text(encoding="utf-8", errors="ignore")
 
 
@@ -289,42 +242,5 @@ def save_file(data: dict):
     target.write_text(str(data["content"]), encoding="utf-8")
     return {"success": True}
 
-@app.post("/api/verify")
-def verify():
 
-    process = subprocess.run(
-        [
-            sys.executable,
-            "verify.py",
-        ],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-
-    report = ROOT / "verify_report.json"
-
-    if report.exists():
-
-        return {
-            "success": process.returncode == 0,
-            "return_code": process.returncode,
-            "stdout": process.stdout,
-            "stderr": process.stderr,
-            "report": report.read_text(
-                encoding="utf-8",
-            ),
-        }
-
-    return {
-        "success": False,
-        "return_code": process.returncode,
-        "stdout": process.stdout,
-        "stderr": process.stderr,
-        "report": None,
-    }
-
-app.include_router(
-    tools_router,
-    prefix="/api",
-)
+app.include_router(tools_router, prefix="/api")

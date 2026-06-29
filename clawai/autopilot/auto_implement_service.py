@@ -84,11 +84,26 @@ class AutoImplementTestReport:
 
 
 @dataclass(slots=True, frozen=True)
+class AutoImplementVerifyReport:
+    command: str
+    success: bool
+    return_code: int
+    stdout: str
+    stderr: str
+    duration_ms: float
+    report_json: dict[str, object] | None = None
+    report_text: str = ""
+    summary: str = ""
+    timestamp: str = ""
+
+
+@dataclass(slots=True, frozen=True)
 class AutoImplementIteration:
     iteration: int
     summary: str
     changes: list[AutoImplementChange] = field(default_factory=list)
     test: AutoImplementTestReport | None = None
+    verify: AutoImplementVerifyReport | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -105,6 +120,8 @@ class AutoImplementResult:
     verify_success: bool = False
     verify_return_code: int = -1
     verify_report: str = ""
+    verify_summary: str = ""
+    verify_timestamp: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -457,13 +474,18 @@ class AutoImplementService:
                 error=test_report.stderr if test_report and not test_report.success else None,
             )
 
-            # self._emit(
-            #     ctx,
-            #     step="verify",
-            #     status="success" if verify_success else "failure",
-            #     message="Verificação final do projeto.",
-            #     iteration=iteration,
-            # )
+            verify_result = self._run_verify()
+
+            self._emit(
+                ctx,
+                step="verify",
+                status="success" if verify_result.success else "failure",
+                message="Verificação final do projeto.",
+                iteration=iteration,
+                files=[change.path for change in changes],
+                summary=verify_result.summary or summary,
+                error=verify_result.stderr if not verify_result.success else None,
+            )
 
             iterations.append(
                 AutoImplementIteration(
@@ -471,20 +493,28 @@ class AutoImplementService:
                     summary=summary,
                     changes=changes,
                     test=test_report,
+                    verify=verify_result,
                 )
             )
 
             previous_test = test_report
-            previous_summary = self._summarize_iteration(summary, changes, test_report)
+            previous_summary = self._summarize_iteration(summary, changes, test_report, verify_result)
 
-            if test_report and test_report.success:
+            if test_report and test_report.success and verify_result.success:
                 break
 
         duration_ms = (time.perf_counter() - ctx.started_at) * 1000
+        last_iteration = iterations[-1] if iterations else None
+        verify_success = bool(last_iteration and last_iteration.verify and last_iteration.verify.success)
+        verify_return_code = last_iteration.verify.return_code if last_iteration and last_iteration.verify else -1
+        verify_report = last_iteration.verify.report_text if last_iteration and last_iteration.verify else ""
+        verify_summary = last_iteration.verify.summary if last_iteration and last_iteration.verify else ""
+        verify_timestamp = last_iteration.verify.timestamp if last_iteration and last_iteration.verify else ""
         success = bool(
-            iterations
-            and iterations[-1].test is not None
-            and iterations[-1].test.success
+            last_iteration
+            and last_iteration.test is not None
+            and last_iteration.test.success
+            and verify_success
         )
 
         if ctx.session is not None and ctx.session.cancel_requested:
@@ -500,15 +530,18 @@ class AutoImplementService:
             success=success,
             test_command=ctx.test_command,
             duration_ms=duration_ms,
-            verify_success=False,
-            verify_return_code=-1,
-            verify_report="",
+            verify_success=verify_success,
+            verify_return_code=verify_return_code,
+            verify_report=verify_report,
+            verify_summary=verify_summary,
+            verify_timestamp=verify_timestamp,
         )
 
         if ctx.session is not None:
             ctx.session.duration_ms = duration_ms
             ctx.session.summary = final_summary
 
+        return result
         return result
 
     def _system_prompt(self) -> str:
@@ -859,6 +892,90 @@ Regras:
                 stderr=(stderr or "") + "\nTimed out after 1800 seconds.",
                 duration_ms=duration_ms,
             )
+
+    def _run_verify(self) -> AutoImplementVerifyReport:
+        started = time.perf_counter()
+        timestamp = datetime.now(timezone.utc).isoformat()
+        command = [sys.executable, "verify.py"]
+
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=1800,
+            )
+        except subprocess.TimeoutExpired as exc:
+            duration_ms = (time.perf_counter() - started) * 1000
+            stdout = self._trim(getattr(exc, "stdout", "") or "")
+            stderr = self._trim(getattr(exc, "stderr", "") or "")
+            return AutoImplementVerifyReport(
+                command=" ".join(command),
+                success=False,
+                return_code=124,
+                stdout=stdout,
+                stderr=(stderr or "") + "\nTimed out after 1800 seconds.",
+                duration_ms=duration_ms,
+                report_json=None,
+                report_text="",
+                summary="timeout",
+                timestamp=timestamp,
+            )
+        except Exception as exc:
+            duration_ms = (time.perf_counter() - started) * 1000
+            return AutoImplementVerifyReport(
+                command=" ".join(command),
+                success=False,
+                return_code=1,
+                stdout="",
+                stderr=str(exc),
+                duration_ms=duration_ms,
+                report_json=None,
+                report_text="",
+                summary=type(exc).__name__,
+                timestamp=timestamp,
+            )
+
+        duration_ms = (time.perf_counter() - started) * 1000
+        stdout = self._trim(completed.stdout or "")
+        stderr = self._trim(completed.stderr or "")
+        report_path = ROOT / "verify_report.json"
+        report_text = ""
+        report_json: dict[str, object] | None = None
+        summary = ""
+
+        if report_path.exists():
+            try:
+                report_text = report_path.read_text(encoding="utf-8", errors="ignore")
+                maybe_json = json.loads(report_text)
+                if isinstance(maybe_json, dict):
+                    report_json = maybe_json
+                    status = str(maybe_json.get("status") or "")
+                    passed = maybe_json.get("tests_passed")
+                    failed = maybe_json.get("tests_failed")
+                    duration = maybe_json.get("duration_ms")
+                    summary_parts = [part for part in [status, f"passed={passed}", f"failed={failed}"] if part and part != "status"]
+                    summary = " | ".join(summary_parts) if summary_parts else status
+                    if duration is not None:
+                        summary = f"{summary} | verify_ms={duration}"
+            except Exception:
+                report_json = None
+                report_text = report_text or ""
+
+        return AutoImplementVerifyReport(
+            command=" ".join(command),
+            success=completed.returncode == 0,
+            return_code=completed.returncode,
+            stdout=stdout,
+            stderr=stderr,
+            duration_ms=duration_ms,
+            report_json=report_json,
+            report_text=report_text,
+            summary=summary,
+            timestamp=timestamp,
+        )
+
     def _summarize_iteration(
         self,
         summary: str,
