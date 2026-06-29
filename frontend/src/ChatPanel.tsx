@@ -29,7 +29,7 @@ function formatTime(ms?: number): string {
     return `${(ms / 1000).toFixed(2)} s`;
 }
 
-function yesNo(value?: boolean): string {
+function yesNo(value?: boolean | null): string {
     if (typeof value !== "boolean") {
         return "-";
     }
@@ -51,6 +51,14 @@ function formatVerifyReport(value?: string | Record<string, unknown> | null): st
     }
 
     return "";
+}
+
+function shortSha(value?: string | null): string {
+    if (!value) {
+        return "-";
+    }
+
+    return value.slice(0, 8);
 }
 
 export default function ChatPanel() {
@@ -564,6 +572,36 @@ export default function ChatPanel() {
                             <div>
                                 Tempo: {formatTime(autoSession.duration_ms)}
                             </div>
+                            {autoSession.git_branch ? (
+                                <div>
+                                    Branch Git: {autoSession.git_branch}
+                                </div>
+                            ) : null}
+                            {autoSession.git_base_branch ? (
+                                <div>
+                                    Base Git: {autoSession.git_base_branch}
+                                </div>
+                            ) : null}
+                            {autoSession.git_commit ? (
+                                <div>
+                                    Commit Git: {shortSha(autoSession.git_commit)}
+                                </div>
+                            ) : null}
+                            {typeof autoSession.git_commit_success === "boolean" ? (
+                                <div>
+                                    Commit automático: {yesNo(autoSession.git_commit_success)}
+                                </div>
+                            ) : null}
+                            {autoSession.git_rollback_performed ? (
+                                <div>
+                                    Rollback: sim
+                                </div>
+                            ) : null}
+                            {autoSession.git_rollback_reason ? (
+                                <div>
+                                    Rollback motivo: {autoSession.git_rollback_reason}
+                                </div>
+                            ) : null}
                             {autoSession.error ? (
                                 <div style={{ color: "#ff8a80", marginTop: 4 }}>
                                     Erro: {autoSession.error}
@@ -668,6 +706,36 @@ export default function ChatPanel() {
                             {autoReport.verify_timestamp ? (
                                 <div>
                                     Verify timestamp: {autoReport.verify_timestamp}
+                                </div>
+                            ) : null}
+                            {autoReport.git_branch ? (
+                                <div>
+                                    Branch Git: {autoReport.git_branch}
+                                </div>
+                            ) : null}
+                            {autoReport.git_base_branch ? (
+                                <div>
+                                    Base Git: {autoReport.git_base_branch}
+                                </div>
+                            ) : null}
+                            {autoReport.git_commit ? (
+                                <div>
+                                    Commit Git: {shortSha(autoReport.git_commit)}
+                                </div>
+                            ) : null}
+                            {typeof autoReport.git_commit_success === "boolean" ? (
+                                <div>
+                                    Commit automático: {yesNo(autoReport.git_commit_success)}
+                                </div>
+                            ) : null}
+                            {autoReport.git_rollback_performed ? (
+                                <div>
+                                    Rollback: sim
+                                </div>
+                            ) : null}
+                            {autoReport.git_rollback_reason ? (
+                                <div>
+                                    Rollback motivo: {autoReport.git_rollback_reason}
                                 </div>
                             ) : null}
                             {autoReport.verify_report ? (
