@@ -4,6 +4,7 @@ import {
     sendChat,
     startAutoImplement,
     stopAutoImplement,
+    runVerify,
     type AutoImplementReport,
     type AutoImplementSession,
     type ChatReply
@@ -256,6 +257,31 @@ export default function ChatPanel() {
         }
     }
 
+    async function verifyProject() {
+
+        try {
+
+            const result = await runVerify();
+
+            console.log(result);
+
+            alert(
+                result.success
+                    ? "Projeto verificado com sucesso."
+                    : "Falha na verificação."
+            );
+
+        }
+        catch (error) {
+
+            console.error(error);
+
+            alert("Não foi possível executar o verify.");
+
+        }
+
+    }
+
     return (
         <div
             style={{
@@ -443,7 +469,7 @@ export default function ChatPanel() {
                         />
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                         <button
                             onClick={() => void runAuto()}
                             disabled={autoRunning || !autoObjective.trim()}
@@ -468,6 +494,19 @@ export default function ChatPanel() {
                             }}
                         >
                             Cancelar
+                        </button>
+
+                        <button
+                            onClick={() => void verifyProject()}
+                            disabled={autoRunning}
+                            style={{
+                                width: "100%",
+                                height: 36,
+                                cursor: autoRunning ? "wait" : "pointer",
+                                opacity: autoRunning ? 0.7 : 1
+                            }}
+                        >
+                            Verify
                         </button>
                     </div>
 

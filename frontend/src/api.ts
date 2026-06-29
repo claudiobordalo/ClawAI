@@ -197,3 +197,16 @@ export async function saveFile(
         }
     );
 }
+
+
+export async function runVerify() {
+    const response = await fetch("/api/verify", {
+        method: "POST",
+    });
+
+    if (!response.ok) {
+        throw new Error("Falha ao executar verify.");
+    }
+
+    return await response.json();
+}

@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -101,6 +102,9 @@ class AutoImplementResult:
     success: bool
     test_command: str
     duration_ms: float
+    verify_success: bool = False
+    verify_return_code: int = -1
+    verify_report: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -453,6 +457,14 @@ class AutoImplementService:
                 error=test_report.stderr if test_report and not test_report.success else None,
             )
 
+            # self._emit(
+            #     ctx,
+            #     step="verify",
+            #     status="success" if verify_success else "failure",
+            #     message="Verificação final do projeto.",
+            #     iteration=iteration,
+            # )
+
             iterations.append(
                 AutoImplementIteration(
                     iteration=iteration,
@@ -488,6 +500,9 @@ class AutoImplementService:
             success=success,
             test_command=ctx.test_command,
             duration_ms=duration_ms,
+            verify_success=False,
+            verify_return_code=-1,
+            verify_report="",
         )
 
         if ctx.session is not None:

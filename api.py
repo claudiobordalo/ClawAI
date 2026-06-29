@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from clawai.autopilot import auto_implement
 from clawai.chat.chat_service import chat
+from clawai.api.tools_api import router as tools_router
 
 ROOT = Path(__file__).resolve().parent
 
@@ -73,14 +74,6 @@ class AutoImplementStatusRequest(BaseModel):
     max_iterations: int = Field(default=3, ge=1, le=5)
     max_files: int = Field(default=15, ge=1, le=20)
 
-
-class AutoImplementStatusRequest(BaseModel):
-    objective: str | None = None
-    test_command: str = "uv run python -m pytest -q"
-    max_iterations: int = Field(default=3, ge=1, le=5)
-    max_files: int = Field(default=15, ge=1, le=20)
-
-
 @app.get("/health")
 def health():
     return {
@@ -143,7 +136,20 @@ def auto_implement_status(
     run_id: str,
 ):
     try:
-        return asdict(auto_implement.get_status(run_id))
+        session = auto_implement.get_status(run_id)
+        payload = asdict(session)
+
+        payload["verify_success"] = (
+            session.result.verify_success if session.result else None
+        )
+        payload["verify_return_code"] = (
+            session.result.verify_return_code if session.result else None
+        )
+        payload["verify_report"] = (
+            session.result.verify_report if session.result else ""
+        )
+
+        return payload
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Run not found") from exc
 
@@ -282,3 +288,43 @@ def save_file(data: dict):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(str(data["content"]), encoding="utf-8")
     return {"success": True}
+
+@app.post("/api/verify")
+def verify():
+
+    process = subprocess.run(
+        [
+            sys.executable,
+            "verify.py",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    report = ROOT / "verify_report.json"
+
+    if report.exists():
+
+        return {
+            "success": process.returncode == 0,
+            "return_code": process.returncode,
+            "stdout": process.stdout,
+            "stderr": process.stderr,
+            "report": report.read_text(
+                encoding="utf-8",
+            ),
+        }
+
+    return {
+        "success": False,
+        "return_code": process.returncode,
+        "stdout": process.stdout,
+        "stderr": process.stderr,
+        "report": None,
+    }
+
+app.include_router(
+    tools_router,
+    prefix="/api",
+)
