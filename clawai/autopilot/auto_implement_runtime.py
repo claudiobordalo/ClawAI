@@ -14,6 +14,7 @@ from threading import Lock, Thread
 from typing import Iterable
 
 from clawai.ai.router import AIRouter, ModelRole
+from clawai.git import GitService, GitSnapshot
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -123,6 +124,16 @@ class AutoImplementResult:
     verify_timestamp: str = ""
     verify_report: str = ""
     verify_report_data: dict[str, object] = field(default_factory=dict)
+    git_enabled: bool = False
+    git_base_branch: str = ""
+    git_branch: str = ""
+    git_snapshot_commit: str = ""
+    git_commit: str = ""
+    git_commit_success: bool = False
+    git_commit_message: str = ""
+    git_rollback_performed: bool = False
+    git_rollback_reason: str = ""
+    git_dirty_snapshot: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -177,6 +188,7 @@ class AutoImplementService:
         self.router = AIRouter()
         self.provider = getattr(self.router, "_provider", "ollama")
         self.model = self.router.model_for(ModelRole.CODER)
+        self.git = GitService(ROOT)
         self._lock = Lock()
         self._sessions_lock = Lock()
         self._sessions: dict[str, AutoImplementSession] = {}
@@ -353,7 +365,24 @@ class AutoImplementService:
         final_summary = "No changes applied"
         last_verify: AutoImplementVerifyReport | None = None
 
+        git_snapshot, git_branch, git_enabled, git_setup_message = self._initialize_git_workspace(ctx.run_id)
+        git_commit = git_snapshot.commit
+        git_commit_message = ""
+        git_commit_success = False
+        git_rollback_performed = False
+        git_rollback_reason = ""
+
         self._emit(ctx, step="plan", status="running", message="Analisando a tarefa e preparando a primeira iteração.")
+        self._emit(
+            ctx,
+            step="git_branch",
+            status="success" if git_enabled else "skipped",
+            message=git_setup_message or (
+                f"Branch temporária pronta: {git_branch} a partir de {git_snapshot.branch}@{git_snapshot.commit[:8]}."
+                if git_enabled
+                else "Git indisponível; a execução seguirá sem branch temporária."
+            ),
+        )
 
         for iteration in range(1, ctx.max_iterations + 1):
             if ctx.session is not None and ctx.session.cancel_requested:
@@ -480,7 +509,35 @@ class AutoImplementService:
                 previous_summary = f"{previous_summary}\n{verify_summary}"
 
             if test_report and test_report.success and verify_report.success:
-                break
+                if git_enabled:
+                    git_commit_message = self._build_git_commit_message(ctx.objective, summary, verify_report.summary)
+                    git_commit_success, commit_stdout, commit_reason = self._commit_git_changes(git_commit_message)
+                    git_commit = self._read_git_head() or git_commit
+                    self._emit(
+                        ctx,
+                        step="git_commit",
+                        status="success" if git_commit_success else "failure",
+                        message=commit_reason if not git_commit_success else f"Commit automático criado na branch {git_branch}.",
+                        iteration=iteration,
+                        summary=git_commit_message,
+                    )
+                    if git_commit_success:
+                        break
+                else:
+                    break
+
+            if git_enabled:
+                git_rollback_performed, rollback_reason = self._rollback_git_workspace(git_snapshot.commit)
+                git_rollback_reason = rollback_reason
+                git_commit = git_snapshot.commit if git_rollback_performed else git_commit
+                self._emit(
+                    ctx,
+                    step="git_rollback",
+                    status="success" if git_rollback_performed else "failure",
+                    message=rollback_reason or "Restaurando workspace para a próxima iteração.",
+                    iteration=iteration,
+                    summary=git_snapshot.commit,
+                )
 
         duration_ms = (time.perf_counter() - ctx.started_at) * 1000
         success = bool(
@@ -491,6 +548,8 @@ class AutoImplementService:
             and iterations[-1].verify.success
         )
         if ctx.session is not None and ctx.session.cancel_requested:
+            success = False
+        if git_enabled and not git_commit_success:
             success = False
 
         verify_success = last_verify.success if last_verify else False
@@ -516,6 +575,16 @@ class AutoImplementService:
             verify_timestamp=verify_timestamp,
             verify_report=verify_report,
             verify_report_data=verify_report_data,
+            git_enabled=git_enabled,
+            git_base_branch=git_snapshot.branch,
+            git_branch=git_branch,
+            git_snapshot_commit=git_snapshot.commit,
+            git_commit=git_commit,
+            git_commit_success=git_commit_success,
+            git_commit_message=git_commit_message,
+            git_rollback_performed=git_rollback_performed,
+            git_rollback_reason=git_rollback_reason,
+            git_dirty_snapshot=git_snapshot.dirty,
         )
 
         if ctx.session is not None:
@@ -523,6 +592,52 @@ class AutoImplementService:
             ctx.session.summary = final_summary
 
         return result
+
+    def _initialize_git_workspace(self, run_id: str) -> tuple[GitSnapshot, str, bool, str]:
+        snapshot = self.git.capture_snapshot()
+        branch_name = f"autonomia/{run_id[:8]}"
+        if not self.git.available() or not snapshot.commit:
+            return snapshot, branch_name, False, "Git indisponível; execução prosseguirá sem branch temporária."
+
+        branch_result = self.git.create_branch(branch_name, snapshot.commit)
+        if branch_result.success:
+            return snapshot, branch_name, True, f"Branch temporária criada: {branch_name} a partir de {snapshot.branch}@{snapshot.commit[:8]}."
+
+        message = branch_result.stderr.strip() or branch_result.stdout.strip() or "Falha ao criar a branch temporária."
+        return snapshot, branch_name, False, message
+
+    def _commit_git_changes(self, message: str) -> tuple[bool, str, str]:
+        add_result = self.git.add_all()
+        if not add_result.success:
+            reason = add_result.stderr.strip() or add_result.stdout.strip() or "Falha ao adicionar alterações ao git."
+            return False, add_result.stdout, reason
+
+        commit_result = self.git.commit(message)
+        if commit_result.success:
+            return True, commit_result.stdout, "Commit automático criado com sucesso."
+
+        reason = commit_result.stderr.strip() or commit_result.stdout.strip() or "Falha ao criar commit automático."
+        return False, commit_result.stdout, reason
+
+    def _rollback_git_workspace(self, snapshot_commit: str) -> tuple[bool, str]:
+        rollback_result = self.git.reset_hard(snapshot_commit)
+        if rollback_result.success:
+            return True, f"Workspace restaurado para {snapshot_commit[:8]}."
+        reason = rollback_result.stderr.strip() or rollback_result.stdout.strip() or "Falha ao restaurar workspace."
+        return False, reason
+
+    def _read_git_head(self) -> str:
+        head_result = self.git.current_commit()
+        if head_result.success:
+            return head_result.stdout.strip()
+        return ""
+
+    def _build_git_commit_message(self, objective: str, summary: str, verify_summary: str) -> str:
+        base = " ".join((summary or objective).split()).strip()
+        if not base:
+            base = "AutoImplement"
+        verify_tag = "PASS" if verify_summary else "VERIFY"
+        return f"AutoImplement [{verify_tag}]: {base[:72]}"
 
     def _system_prompt(self) -> str:
         return """Você é o mecanismo de auto-implementação do ClawAI.
