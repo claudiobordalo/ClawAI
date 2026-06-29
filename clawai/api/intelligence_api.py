@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from clawai.integrations.composio import composio_service
 from clawai.integrations.composio.models import ComposioExecutionRequest
-from clawai.intelligence import intelligence_orchestrator, tool_broker
+from clawai.intelligence.broker import cognition_broker, intelligence_orchestrator
 
 router = APIRouter()
 
@@ -51,12 +51,12 @@ def intelligence_analyze(request: IntelligenceAnalyzeRequest):
 
 @router.get("/intelligence/tools")
 def intelligence_tools(force_refresh: bool = False):
-    return [asdict(item) for item in tool_broker.discover_tools(force_refresh=force_refresh)]
+    return [asdict(item) for item in cognition_broker.discover_tools(force_refresh=force_refresh)]
 
 
 @router.get("/intelligence/memory/search")
 def intelligence_memory_search(query: str, limit: int = 10):
-    return [entry.to_dict() for entry in tool_broker.search_memory(query, limit=limit)]
+    return [entry.to_dict() for entry in cognition_broker.search_memory(query, limit=limit)]
 
 
 @router.post("/intelligence/memory/remember")
