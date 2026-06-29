@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
 
 import Explorer from "./Explorer";
-import ChatPanel from "./ChatPanel";
+import OperationsHub from "./OperationsHub";
 import { loadFile, loadTree, saveFile } from "./api";
 import type { TreeNode } from "./tree";
 import "./App.css";
@@ -163,7 +163,7 @@ export default function App() {
         <div
             style={{
                 display: "grid",
-                gridTemplateColumns: "340px 1fr 380px",
+                gridTemplateColumns: "340px minmax(0, 1fr) 440px",
                 height: "100vh",
                 background: "#1e1e1e",
                 overflow: "hidden"
@@ -179,7 +179,8 @@ export default function App() {
                 style={{
                     display: "flex",
                     flexDirection: "column",
-                    overflow: "hidden"
+                    overflow: "hidden",
+                    minWidth: 0
                 }}
             >
                 <div
@@ -258,7 +259,7 @@ export default function App() {
                 />
             </div>
 
-            <ChatPanel />
+            <OperationsHub />
         </div>
     );
 }
