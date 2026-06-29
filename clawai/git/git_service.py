@@ -84,3 +84,14 @@ class GitService:
 
     def commit(self, message: str) -> GitOperationResult:
         return self._run("commit", "--allow-empty", "-m", message)
+
+    def merge_ff_only(self, target_branch: str, source_branch: str) -> GitOperationResult:
+        current = self.current_branch().stdout.strip()
+        checkout_result = self.checkout(target_branch)
+        if not checkout_result.success:
+            return checkout_result
+
+        merge_result = self._run("merge", "--ff-only", source_branch)
+        if current and current != target_branch:
+            self.checkout(current)
+        return merge_result
