@@ -10,9 +10,9 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from clawai.api.tools_api import router as tools_router
 from clawai.autopilot import auto_implement
 from clawai.chat.chat_service import chat
-from clawai.api.tools_api import router as tools_router
 
 ROOT = Path(__file__).resolve().parent
 
@@ -94,6 +94,7 @@ class AutoImplementStatusRequest(BaseModel):
     max_iterations: int = Field(default=3, ge=1, le=5)
     max_files: int = Field(default=15, ge=1, le=20)
 
+
 @app.get("/health")
 def health():
     return {
@@ -166,6 +167,16 @@ def auto_implement_status(
         payload["verify_timestamp"] = result.verify_timestamp if result else ""
         payload["verify_report"] = result.verify_report if result else ""
         payload["verify_report_data"] = result.verify_report_data if result else {}
+        payload["git_enabled"] = result.git_enabled if result else False
+        payload["git_base_branch"] = result.git_base_branch if result else ""
+        payload["git_branch"] = result.git_branch if result else ""
+        payload["git_snapshot_commit"] = result.git_snapshot_commit if result else ""
+        payload["git_commit"] = result.git_commit if result else ""
+        payload["git_commit_success"] = result.git_commit_success if result else False
+        payload["git_commit_message"] = result.git_commit_message if result else ""
+        payload["git_rollback_performed"] = result.git_rollback_performed if result else False
+        payload["git_rollback_reason"] = result.git_rollback_reason if result else ""
+        payload["git_dirty_snapshot"] = result.git_dirty_snapshot if result else False
 
         return payload
     except KeyError as exc:
@@ -191,6 +202,28 @@ def auto_implement_stop(
         return asdict(auto_implement.stop(run_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Run not found") from exc
+
+
+@app.post("/api/verify")
+def verify_route():
+    process = subprocess.run(
+        [sys.executable, "verify.py"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+
+    report_text, report_data = _read_verify_report()
+
+    return {
+        "success": process.returncode == 0,
+        "return_code": process.returncode,
+        "stdout": process.stdout,
+        "stderr": process.stderr,
+        "report_text": report_text,
+        "report": report_data if report_data is not None else report_text,
+        "report_data": report_data,
+    }
 
 
 @app.post("/api/chat/image")
@@ -307,26 +340,6 @@ def save_file(data: dict):
     target.write_text(str(data["content"]), encoding="utf-8")
     return {"success": True}
 
-@app.post("/api/verify")
-def verify():
-    process = subprocess.run(
-        [sys.executable, "verify.py"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-
-    report_text, report_data = _read_verify_report()
-
-    return {
-        "success": completed.returncode == 0,
-        "return_code": completed.returncode,
-        "stdout": completed.stdout,
-        "stderr": completed.stderr,
-        "report_text": report_text,
-        "report": report_json,
-        "report_data": report_json,
-    }
 
 app.include_router(
     tools_router,
