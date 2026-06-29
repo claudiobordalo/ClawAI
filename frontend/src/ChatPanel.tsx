@@ -9,6 +9,7 @@ import {
     type AutoImplementSession,
     type ChatReply
 } from "./api";
+import AutonomyPanel from "./AutonomyPanel";
 
 type Message = {
     id: number;
@@ -80,6 +81,7 @@ export default function ChatPanel() {
     const [autoReport, setAutoReport] = useState<AutoImplementReport | null>(null);
     const [autoSession, setAutoSession] = useState<AutoImplementSession | null>(null);
     const [autoError, setAutoError] = useState("");
+    const [panelMode, setPanelMode] = useState<"chat" | "autonomy">("chat");
 
     const timerRef = useRef<number | null>(null);
     const pollRef = useRef<number | null>(null);
@@ -306,6 +308,10 @@ export default function ChatPanel() {
 
     }
 
+    if (panelMode === "autonomy") {
+        return <AutonomyPanel onBack={() => setPanelMode("chat")} />;
+    }
+
     return (
         <div
             style={{
@@ -321,10 +327,43 @@ export default function ChatPanel() {
                     padding: "12px",
                     borderBottom: "1px solid #333",
                     color: "#ddd",
-                    fontWeight: "bold"
+                    fontWeight: "bold",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12
                 }}
             >
-                ClawAI Chat
+                <span>ClawAI Chat</span>
+                <div
+                    style={{
+                        display: "flex",
+                        gap: 8
+                    }}
+                >
+                    <button
+                        onClick={() => setPanelMode("chat")}
+                        disabled={panelMode === "chat"}
+                        style={{
+                            height: 30,
+                            padding: "0 10px",
+                            cursor: panelMode === "chat" ? "default" : "pointer",
+                            opacity: panelMode === "chat" ? 0.7 : 1
+                        }}
+                    >
+                        Chat
+                    </button>
+                    <button
+                        onClick={() => setPanelMode("autonomy")}
+                        style={{
+                            height: 30,
+                            padding: "0 10px",
+                            cursor: "pointer"
+                        }}
+                    >
+                        Autonomia
+                    </button>
+                </div>
             </div>
 
             <div
