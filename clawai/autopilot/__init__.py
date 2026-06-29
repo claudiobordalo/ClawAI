@@ -9,6 +9,13 @@ from .auto_implement_runtime import (
     AutoImplementVerifyReport,
     auto_implement,
 )
+from .autonomy_coordinator import (
+    AutonomyCoordinator,
+    EngineeringMemoryEntry,
+    PlanningState,
+    QueueItem,
+    autonomy,
+)
 
 __all__ = [
     "AutoImplementChange",
@@ -19,5 +26,10 @@ __all__ = [
     "AutoImplementService",
     "AutoImplementTestReport",
     "AutoImplementVerifyReport",
+    "AutonomyCoordinator",
+    "EngineeringMemoryEntry",
+    "PlanningState",
+    "QueueItem",
+    "autonomy",
     "auto_implement",
 ]
