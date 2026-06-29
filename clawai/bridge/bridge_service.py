@@ -5,7 +5,6 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import asdict
 from typing import Sequence
 
 from clawai.ai.router import AIRouter, ModelRole
@@ -181,12 +180,17 @@ class BridgeService:
         provider_name = participant.provider or self.default_provider_for_role(role_key)
         router = self._router(provider_name)
         model_role = ROLE_TO_MODEL_ROLE.get(role_key, ModelRole.DEFAULT)
+        resolved_model = participant.model.strip() if participant.model.strip() else self._fallback_model(role_key)
         composed_prompt = self._compose_prompt(role_key, prompt)
         composed_system_prompt = self._compose_system_prompt(role_key, system_prompt)
         started_at = time.perf_counter()
 
         try:
-            provider = router.provider_for(model_role)
+            provider = ProviderFactory.create(
+                provider=provider_name,
+                settings=self.settings,
+                model=resolved_model,
+            )
             response = provider.generate(
                 prompt=composed_prompt,
                 system_prompt=composed_system_prompt,
@@ -207,7 +211,7 @@ class BridgeService:
             return BridgeParticipantResult(
                 role=role_key,
                 provider=provider_name,
-                model=self._fallback_model(role_key),
+                model=resolved_model,
                 content="",
                 elapsed_ms=elapsed_ms,
                 error=str(exc),
@@ -237,7 +241,6 @@ class BridgeService:
         judge_provider: str,
         judge_model: str,
     ) -> dict[str, object]:
-        router = self._router(judge_provider)
         participant_block = []
         for item in participants:
             participant_block.append(
@@ -270,7 +273,11 @@ class BridgeService:
         )
 
         try:
-            provider = router.provider_for(ModelRole.REVIEWER)
+            provider = ProviderFactory.create(
+                provider=judge_provider,
+                settings=self.settings,
+                model=judge_model,
+            )
             response = provider.generate(prompt=judge_prompt, system_prompt=self._judge_system_prompt())
             parsed = self._extract_json_object(response.content)
             parsed["raw"] = response.content
