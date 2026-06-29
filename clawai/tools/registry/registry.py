@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from clawai.tools.base.tool import Tool
 
-
 class ToolRegistry:
 
     def __init__(self) -> None:
@@ -41,3 +40,5 @@ class ToolRegistry:
     ) -> list[Tool]:
 
         return list(self._tools.values())
+
+tool_registry = ToolRegistry()
