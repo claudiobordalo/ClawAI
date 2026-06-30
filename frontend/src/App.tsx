@@ -60,6 +60,15 @@ export default function App() {
     const [busy, setBusy] = useState(false);
     const [lastRefresh, setLastRefresh] = useState(0);
     const dragState = useRef<"left" | "right" | null>(null);
+    const workspaces = workspaceSummary?.workspaces ?? [];
+    const activeWorkspace = useMemo(
+        () => workspaces.find(item => item.workspace_id === activeWorkspaceId) ?? workspaceSummary?.current ?? null,
+        [activeWorkspaceId, workspaces, workspaceSummary],
+    );
+    const activeWorkspaceEntry = activeWorkspaceId ? workspaceTabs[activeWorkspaceId] : undefined;
+    const activeTabs = activeWorkspaceEntry?.tabs ?? [];
+    const activePath = activeWorkspaceEntry?.active ?? "";
+    const currentTab = activeTabs.find(tab => tab.path === activePath) ?? activeTabs[0] ?? null;
 
     useEffect(() => {
         void bootstrap();
@@ -136,17 +145,6 @@ export default function App() {
             window.removeEventListener("mouseup", onMouseUp);
         };
     }, [rightVisible]);
-
-    const workspaces = workspaceSummary?.workspaces ?? [];
-    const activeWorkspace = useMemo(
-        () => workspaces.find(item => item.workspace_id === activeWorkspaceId) ?? workspaceSummary?.current ?? null,
-        [activeWorkspaceId, workspaces, workspaceSummary],
-    );
-
-    const activeWorkspaceEntry = activeWorkspaceId ? workspaceTabs[activeWorkspaceId] : undefined;
-    const activeTabs = activeWorkspaceEntry?.tabs ?? [];
-    const activePath = activeWorkspaceEntry?.active ?? "";
-    const currentTab = activeTabs.find(tab => tab.path === activePath) ?? activeTabs[0] ?? null;
 
     async function bootstrap() {
         setBusy(true);
