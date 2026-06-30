@@ -183,70 +183,57 @@ export type AutoImplementSession = {
     git_dirty_snapshot?: boolean | null;
 };
 
-export async function sendChat(prompt: string): Promise<ChatReply> {
-    const response = await api.post("/chat", {
-        prompt
-    });
+export type WorkspaceInfo = {
+    workspace_id: string;
+    name: string;
+    root: string;
+    active: boolean;
+};
 
+export type WorkspaceSummary = {
+    current: WorkspaceInfo;
+    workspaces: WorkspaceInfo[];
+};
+
+export async function sendChat(prompt: string): Promise<ChatReply> {
+    const response = await api.post("/chat", { prompt });
     if (typeof response.data === "string") {
         return { answer: response.data };
     }
-
     return response.data as ChatReply;
 }
 
-export async function runAutoImplement(
-    objective: string,
-    testCommand = "uv run python -m pytest -q",
-    maxIterations = 3,
-    maxFiles = 15
-): Promise<AutoImplementReport> {
+export async function runAutoImplement(objective: string, testCommand = "uv run python -m pytest -q", maxIterations = 3, maxFiles = 15): Promise<AutoImplementReport> {
     const response = await api.post("/auto/implement", {
         objective,
         test_command: testCommand,
         max_iterations: maxIterations,
         max_files: maxFiles
     });
-
     return response.data as AutoImplementReport;
 }
 
-export async function startAutoImplement(
-    objective: string,
-    testCommand = "uv run python -m pytest -q",
-    maxIterations = 3,
-    maxFiles = 15
-): Promise<AutoImplementSession> {
+export async function startAutoImplement(objective: string, testCommand = "uv run python -m pytest -q", maxIterations = 3, maxFiles = 15): Promise<AutoImplementSession> {
     const response = await api.post("/auto/implement/start", {
         objective,
         test_command: testCommand,
         max_iterations: maxIterations,
         max_files: maxFiles
     });
-
     return response.data as AutoImplementSession;
 }
 
-export async function getAutoImplementStatus(
-    runId: string
-): Promise<AutoImplementSession> {
+export async function getAutoImplementStatus(runId: string): Promise<AutoImplementSession> {
     const response = await api.get(`/auto/implement/status/${runId}`);
     return response.data as AutoImplementSession;
 }
 
-export async function getAutoImplementEvents(
-    runId: string,
-    after = 0
-): Promise<AutoImplementEvent[]> {
-    const response = await api.get(`/auto/implement/events/${runId}`, {
-        params: { after }
-    });
+export async function getAutoImplementEvents(runId: string, after = 0): Promise<AutoImplementEvent[]> {
+    const response = await api.get(`/auto/implement/events/${runId}`, { params: { after } });
     return response.data as AutoImplementEvent[];
 }
 
-export async function stopAutoImplement(
-    runId: string
-): Promise<AutoImplementSession> {
+export async function stopAutoImplement(runId: string): Promise<AutoImplementSession> {
     const response = await api.post(`/auto/implement/stop/${runId}`);
     return response.data as AutoImplementSession;
 }
@@ -256,36 +243,41 @@ export async function runVerify(): Promise<VerifyResponse> {
     return response.data as VerifyResponse;
 }
 
-export async function loadTree(path = ""): Promise<TreeNode[]> {
-    const response = await api.get("/tree", {
-        params: path ? { path } : undefined
-    });
-
-    return response.data;
+export async function listWorkspaces(): Promise<WorkspaceSummary> {
+    const response = await api.get("/workspaces");
+    return response.data as WorkspaceSummary;
 }
 
-export async function loadFile(path: string): Promise<string> {
-    const response = await api.get(
-        "/file",
-        {
-            params: {
-                path
-            }
-        }
-    );
-
-    return response.data;
+export async function getCurrentWorkspace(): Promise<WorkspaceInfo> {
+    const response = await api.get("/workspaces/current");
+    return response.data as WorkspaceInfo;
 }
 
-export async function saveFile(
-    path: string,
-    content: string
-): Promise<void> {
-    await api.post(
-        "/file",
-        {
-            path,
-            content
-        }
-    );
+export async function openWorkspace(path: string, name?: string): Promise<{ workspace: WorkspaceInfo; summary: WorkspaceSummary }> {
+    const response = await api.post("/workspaces/open", { path, name: name ?? null });
+    return response.data as { workspace: WorkspaceInfo; summary: WorkspaceSummary };
+}
+
+export async function selectWorkspace(workspaceId: string): Promise<{ workspace: WorkspaceInfo; summary: WorkspaceSummary }> {
+    const response = await api.post("/workspaces/select", { workspace_id: workspaceId });
+    return response.data as { workspace: WorkspaceInfo; summary: WorkspaceSummary };
+}
+
+export async function closeWorkspace(workspaceId: string): Promise<{ workspaces: WorkspaceInfo[]; summary: WorkspaceSummary }> {
+    const response = await api.post(`/workspaces/close/${workspaceId}`);
+    return response.data as { workspaces: WorkspaceInfo[]; summary: WorkspaceSummary };
+}
+
+export async function loadTree(path = "", workspaceId?: string): Promise<TreeNode[]> {
+    const response = await api.get("/tree", { params: { ...(path ? { path } : {}), ...(workspaceId ? { workspace_id: workspaceId } : {}) } });
+    return response.data as TreeNode[];
+}
+
+export async function loadFile(path: string, workspaceId?: string): Promise<string> {
+    const response = await api.get("/file", { params: { path, ...(workspaceId ? { workspace_id: workspaceId } : {}) } });
+    return response.data as string;
+}
+
+export async function saveFile(path: string, content: string, workspaceId?: string): Promise<void> {
+    await api.post("/file", { path, content, ...(workspaceId ? { workspace_id: workspaceId } : {}) });
 }
