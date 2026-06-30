@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from clawai.api.tools_api import router as tools_router
 from clawai.autopilot import auto_implement
 from clawai.chat.chat_service import chat
-from clawai.workspaces.state import workspace_state
+from clawai.workspaces import workspace_manager
 
 ROOT = Path(__file__).resolve().parent
 IGNORED_NAMES = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "node_modules"}
@@ -78,19 +78,19 @@ def health():
 
 @app.get("/api/workspaces")
 def list_workspaces():
-    return workspace_state.summary()
+    return workspace_manager.summary()
 
 
 @app.get("/api/workspaces/current")
 def current_workspace():
-    return asdict(workspace_state.current())
+    return asdict(workspace_manager.current())
 
 
 @app.post("/api/workspaces/open")
 def open_workspace(request: WorkspaceOpenRequest):
     try:
-        workspace = workspace_state.open(request.path, name=request.name)
-        return {"workspace": asdict(workspace), "summary": workspace_state.summary()}
+        workspace = workspace_manager.open_workspace(request.path, name=request.name)
+        return {"workspace": asdict(workspace), "summary": workspace_manager.summary()}
     except FileNotFoundError as exc:
         raise HTTPException(status_code=400, detail=f"Workspace folder not found: {exc}") from exc
     except Exception as exc:
@@ -100,8 +100,8 @@ def open_workspace(request: WorkspaceOpenRequest):
 @app.post("/api/workspaces/select")
 def select_workspace(request: WorkspaceSelectRequest):
     try:
-        workspace = workspace_state.select(request.workspace_id)
-        return {"workspace": asdict(workspace), "summary": workspace_state.summary()}
+        workspace = workspace_manager.set_active(request.workspace_id)
+        return {"workspace": asdict(workspace), "summary": workspace_manager.summary()}
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Workspace not found") from exc
 
@@ -109,7 +109,7 @@ def select_workspace(request: WorkspaceSelectRequest):
 @app.post("/api/workspaces/close/{workspace_id}")
 def close_workspace(workspace_id: str):
     try:
-        return {"workspaces": [asdict(item) for item in workspace_state.close(workspace_id)], "summary": workspace_state.summary()}
+        return {"workspaces": [asdict(item) for item in workspace_manager.close_workspace(workspace_id)], "summary": workspace_manager.summary()}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -214,7 +214,7 @@ async def chat_file(prompt: str = Form(...), file: UploadFile = File(...)):
 @app.get("/api/tree")
 def tree(path: str = "", workspace_id: str | None = None):
     try:
-        return workspace_state.tree(path=path, workspace_id=workspace_id)
+        return workspace_manager.tree(path=path, workspace_id=workspace_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Folder not found")
     except PermissionError as exc:
@@ -224,7 +224,7 @@ def tree(path: str = "", workspace_id: str | None = None):
 @app.get("/api/file")
 def file(path: str, workspace_id: str | None = None):
     try:
-        return workspace_state.read(path=path, workspace_id=workspace_id)
+        return workspace_manager.read_file(path=path, workspace_id=workspace_id)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found")
     except PermissionError as exc:
@@ -234,7 +234,7 @@ def file(path: str, workspace_id: str | None = None):
 @app.post("/api/file")
 def save_file(data: SaveFileRequest):
     try:
-        return workspace_state.write(path=data.path, content=data.content, workspace_id=data.workspace_id)
+        return workspace_manager.save_file(path=data.path, content=data.content, workspace_id=data.workspace_id)
     except PermissionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

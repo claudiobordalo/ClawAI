@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -11,6 +12,15 @@ ROOT = Path(__file__).resolve().parents[2]
 STATE_FILE = ROOT / ".clawai" / "workspaces.json"
 IGNORED = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "node_modules"}
 
+_ALLOWED_FIELDS = {f.name for f in fields(Workspace)}
+def _workspace_from_dict(data: dict) -> Workspace:
+    return Workspace(
+        **{
+            k: v
+            for k, v in data.items()
+            if k in _ALLOWED_FIELDS
+        }
+    )
 
 def _stable_id(value: str) -> str:
     return hashlib.sha1(value.encode("utf-8", errors="ignore")).hexdigest()[:12]
@@ -37,12 +47,16 @@ class Workspace:
     name: str
     root: str
     active: bool = False
-
+    created_at: str | None = None
 
 class WorkspaceState:
     def __init__(self) -> None:
         self._lock = Lock()
-        self._items = [Workspace(**item) for item in _load() if isinstance(item, dict)]
+        self._items = [
+            _workspace_from_dict(item)
+            for item in _load()
+            if isinstance(item, dict)
+        ]
         if not self._items:
             self._items = [Workspace("default", ROOT.name, str(ROOT), True)]
             self._persist()
