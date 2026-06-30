@@ -1,12 +1,5 @@
 import { useState } from "react";
-import {
-    FaChevronDown,
-    FaChevronRight,
-    FaFileAlt,
-    FaFolder,
-    FaFolderOpen,
-    FaSpinner
-} from "react-icons/fa";
+import { FaChevronDown, FaChevronRight, FaFileAlt, FaFolder, FaFolderOpen, FaSpinner } from "react-icons/fa";
 import type { TreeNode } from "./tree";
 
 type Props = {
@@ -21,8 +14,9 @@ export default function Explorer({ nodes, onOpen, onLoadChildren }: Props) {
     const [loadingPaths, setLoadingPaths] = useState<Record<string, boolean>>({});
 
     async function ensureLoaded(path: string) {
-        if (Object.prototype.hasOwnProperty.call(loadedChildren, path) || loadingPaths[path])
+        if (Object.prototype.hasOwnProperty.call(loadedChildren, path) || loadingPaths[path]) {
             return;
+        }
 
         setLoadingPaths(prev => ({ ...prev, [path]: true }));
 
@@ -43,15 +37,17 @@ export default function Explorer({ nodes, onOpen, onLoadChildren }: Props) {
         const willExpand = !expanded.has(node.path);
         const next = new Set(expanded);
 
-        if (willExpand)
+        if (willExpand) {
             next.add(node.path);
-        else
+        } else {
             next.delete(node.path);
+        }
 
         setExpanded(next);
 
-        if (willExpand)
+        if (willExpand) {
             void ensureLoaded(node.path);
+        }
     }
 
     function collapseAll() {
@@ -61,7 +57,8 @@ export default function Explorer({ nodes, onOpen, onLoadChildren }: Props) {
     return (
         <div
             style={{
-                height: "100vh",
+                height: "100%",
+                minHeight: 0,
                 overflow: "auto",
                 background: "#1e1e1e",
                 borderRight: "1px solid #333"
@@ -72,31 +69,34 @@ export default function Explorer({ nodes, onOpen, onLoadChildren }: Props) {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    padding: "10px"
+                    padding: "10px 12px",
+                    position: "sticky",
+                    top: 0,
+                    zIndex: 2,
+                    background: "#1e1e1e",
+                    borderBottom: "1px solid #2b2b2b"
                 }}
             >
                 <strong>Explorer</strong>
-
-                <button
-                    onClick={collapseAll}
-                    style={{ cursor: "pointer" }}
-                >
+                <button onClick={collapseAll} style={{ cursor: "pointer" }}>
                     Collapse All
                 </button>
             </div>
 
-            {nodes.map(node => (
-                <Node
-                    key={node.path}
-                    node={node}
-                    level={0}
-                    expanded={expanded}
-                    loadedChildren={loadedChildren}
-                    loadingPaths={loadingPaths}
-                    toggle={toggle}
-                    onOpen={onOpen}
-                />
-            ))}
+            <div style={{ padding: "6px 0 12px" }}>
+                {nodes.map(node => (
+                    <Node
+                        key={node.path}
+                        node={node}
+                        level={0}
+                        expanded={expanded}
+                        loadedChildren={loadedChildren}
+                        loadingPaths={loadingPaths}
+                        toggle={toggle}
+                        onOpen={onOpen}
+                    />
+                ))}
+            </div>
         </div>
     );
 }
@@ -111,15 +111,7 @@ type NodeProps = {
     onOpen: (path: string) => void;
 };
 
-function Node({
-    node,
-    level,
-    expanded,
-    loadedChildren,
-    loadingPaths,
-    toggle,
-    onOpen
-}: NodeProps) {
+function Node({ node, level, expanded, loadedChildren, loadingPaths, toggle, onOpen }: NodeProps) {
     const open = expanded.has(node.path);
     const children = loadedChildren[node.path] ?? node.children ?? [];
 
@@ -152,9 +144,7 @@ function Node({
 
                 {node.name}
 
-                {node.directory && loadingPaths[node.path] ? (
-                    <FaSpinner className="spin" size={10} style={{ marginLeft: 6 }} />
-                ) : null}
+                {node.directory && loadingPaths[node.path] ? <FaSpinner className="spin" size={10} style={{ marginLeft: 6 }} /> : null}
             </div>
 
             {node.directory && open && children.map(child => (
