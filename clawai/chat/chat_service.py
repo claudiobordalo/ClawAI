@@ -11,6 +11,8 @@ from typing import Iterator
 from clawai.ai.router import AIRouter, ModelRole
 from clawai.documents.reader import documents
 from clawai.memory.memory import memory
+from clawai.cognition.pipeline import CognitionPipeline
+from clawai.cognition.types import PipelineResult
 from clawai.search.search_engine import SearchResult, SearchTimings, search
 
 BASE_SYSTEM_PROMPT = "Você é o ClawAI, um agente de desenvolvimento dentro do próprio projeto. Responda como o ClawAI e seja direto."
@@ -44,6 +46,35 @@ class ChatResponse:
     memory_saved: bool = False
     timings: ChatTimings = field(default_factory=ChatTimings)
 
+    @classmethod
+    def from_pipeline(cls, result: PipelineResult) -> "ChatResponse":
+        return cls(
+            answer=result.answer,
+            used_memory=result.used_memory,
+            used_knowledge=result.used_knowledge,
+            requires_web=result.requires_web,
+            provider=result.provider,
+            model=result.model,
+            memory_saved=result.memory_saved,
+            timings=ChatTimings(
+                search=result.timings.search,
+                model_ms=result.synthesis.duration_ms,
+                postprocess_ms=result.timings.postprocess_ms,
+                total_ms=result.timings.total_ms,
+            ),
+        )
+
+class ChatService:
+    def __init__(self) -> None:
+        self.router = AIRouter()
+        self.provider_name = getattr(self.router, "_provider", "ollama")
+        self.pipeline = CognitionPipeline(router=self.router, provider_name=self.provider_name)
+
+    def ask(self, prompt: str, file: str | None = None) -> ChatResponse:
+        return ChatResponse.from_pipeline(self.pipeline.execute(prompt, file))
+
+    def ask_stream(self, prompt: str, file: str | None = None) -> Iterator[dict[str, object]]:
+        yield from self.pipeline.stream(prompt, file)
 
 class CognitionPipeline:
     def __init__(self, router: AIRouter, provider_name: str) -> None:

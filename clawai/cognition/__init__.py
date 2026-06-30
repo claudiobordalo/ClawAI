@@ -15,6 +15,12 @@ from .replanning_engine import ReplanningEngine
 from .review_result import ReviewResult
 from .reviewer import AbstractReviewer, Reviewer
 from .success_analysis import SuccessAnalysis
+from .debate import DebateEngine, DebateResult
+from .judge import JudgeEngine, SynthesisResult
+from .planner import PlannerEngine, PlannerResult
+from .pipeline import CognitionPipeline, PipelineResult
+from .supervisor import SupervisorEngine, SupervisorResult
+from .types import PipelineTimings
 
 __all__ = [
     "AbstractDecisionEngine",
@@ -37,4 +43,15 @@ __all__ = [
     "ReflectionEngine",
     "ReflectionEntry",
     "ReplanningEngine",
+    "CognitionPipeline",
+    "PipelineResult",
+    "PipelineTimings",
+    "SupervisorEngine",
+    "SupervisorResult",
+    "PlannerEngine",
+    "PlannerResult",
+    "DebateEngine",
+    "DebateResult",
+    "JudgeEngine",
+    "SynthesisResult",
 ]
