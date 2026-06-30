@@ -9,6 +9,7 @@ from clawai.ai.router import AIRouter, ModelRole
 from clawai.documents.reader import documents
 from clawai.memory.memory import memory
 from clawai.search.search_engine import SearchResult, SearchTimings, search
+from clawai.cognition.pipeline import CognitionPipeline
 
 
 BASE_SYSTEM_PROMPT = """
