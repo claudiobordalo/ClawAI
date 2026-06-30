@@ -65,7 +65,7 @@ function styles() {
         pill: { display: "inline-flex", alignItems: "center", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 700, background: "#343434", color: "#ddd", whiteSpace: "nowrap" } as CSSProperties,
         button: (active = false, danger = false): CSSProperties => ({ height: 34, padding: "0 12px", borderRadius: 10, border: danger ? "1px solid #7f1d1d" : active ? "1px solid #64748b" : "1px solid #3a3a3a", background: danger ? "#3a1b1b" : active ? "#364152" : "#242424", color: danger ? "#ffb4b4" : active ? "#fff" : "#ddd", cursor: "pointer", whiteSpace: "nowrap" }),
         input: { width: "100%", boxSizing: "border-box", borderRadius: 10, border: "1px solid #3a3a3a", background: "#242424", color: "#ddd", padding: 10, outline: "none" } as CSSProperties,
-        textarea: { width: "100%", minHeight: 70, maxHeight: 90, resize: "vertical", boxSizing: "border-box", borderRadius: 10, border: "1px solid #3a3a3a", background: "#242424", color: "#ddd", padding: 10, outline: "none" } as CSSProperties,
+        textarea: { width: "100%", minHeight: 56, maxHeight: 72, resize: "vertical", boxSizing: "border-box", borderRadius: 10, border: "1px solid #3a3a3a", background: "#242424", color: "#ddd", padding: 10, outline: "none" } as CSSProperties,
         row: { display: "flex", gap: 8, flexWrap: "wrap" } as CSSProperties,
         grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } as CSSProperties,
         grid3: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 } as CSSProperties,
@@ -312,47 +312,58 @@ export default function OperationsHub() {
 
                 <div style={st.info}>Workspace ativo e painel lateral redimensionável. Abra outra pasta pelo seletor de projetos sem reiniciar o backend.</div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <Metric label="Objetivos" value={queue.length} hint={`${activeQueue.length} ativos`} />
-                    <Metric label="Evolution" value={evolutionState?.backlog_size ?? 0} hint={`${evolutionState?.cycles_run ?? 0} ciclos`} />
-                </div>
-
                 <div style={st.tabs}>{SECTIONS.map(item => <button key={item.key} type="button" onClick={() => setSection(item.key)} style={st.tabButton(section === item.key)}><span style={st.tabLabel}>{item.label}</span><span style={st.tabHint}>{item.hint}</span></button>)}</div>
             </div>
 
             <div style={st.content}>
                 {section === "chat" ? (
-                    <div style={st.chatArea}>
-                        <div style={{ ...st.card, flex: "0 0 auto" }}>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>Chat principal</div>
-                            <div style={{ ...st.small, marginTop: 4, lineHeight: 1.45 }}>Pergunte, peça análise, gere backlog ou conduza a implementação sem esconder as respostas.</div>
-                        </div>
-
-                        <div style={{ ...st.card, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
-                            <div style={st.row}>
-                                <QuickAction label="Analisar projeto" onClick={() => setChatPrompt("Analise o estado atual do projeto e diga qual é o próximo passo mais importante.")} />
-                                <QuickAction label="Gerar backlog" onClick={() => setChatPrompt("Gere um backlog técnico priorizado para aumentar a autonomia do ClawAI.")} />
-                                <QuickAction label="Corrigir UI" onClick={() => setChatPrompt("Corrija a interface para ficar mais intuitiva e consistente.")} />
-                            </div>
-
-                            <div ref={chatScrollRef} style={{ ...st.scrollArea, flex: 1, border: "1px solid #2d2d2d", borderRadius: 12, padding: 10, background: "#181818" }}>
-                                <div style={{ display: "grid", gap: 8 }}>
-                                    {messages.map(message => (
-                                        <div key={message.id} style={st.message(message.role)}>
-                                            <div style={st.messageRole(message.role)}>{message.role === "assistant" ? "ClawAI" : "Você"}</div>
-                                            <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#ddd" }}>{message.text}</div>
-                                            {message.role === "assistant" && message.reply?.timings ? <div style={{ marginTop: 8, ...st.small, lineHeight: 1.5 }}><div>Provider: {message.reply.provider ?? "-"} · Modelo: {message.reply.model ?? "-"}</div><div>Memória: {String(message.reply.used_memory)} · Web: {String(message.reply.requires_web)}</div><div>Total: {fmtMs(message.reply.timings.total_ms)}</div></div> : null}
+                    <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div
+                            ref={chatScrollRef}
+                            style={{
+                                flex: 1,
+                                minHeight: 0,
+                                overflow: "auto",
+                                border: "1px solid #2d2d2d",
+                                borderRadius: 14,
+                                padding: 12,
+                                background: "#181818",
+                            }}
+                        >
+                            <div style={{ display: "grid", gap: 8 }}>
+                                {messages.map(message => (
+                                    <div key={message.id} style={st.message(message.role)}>
+                                        <div style={st.messageRole(message.role)}>
+                                            {message.role === "assistant" ? "ClawAI" : "Você"}
                                         </div>
-                                    ))}
-                                </div>
+                                        <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#ddd" }}>
+                                            {message.text}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
                         <div style={{ ...st.card, flex: "0 0 auto", display: "grid", gap: 8 }}>
-                            <textarea value={chatPrompt} onChange={e => setChatPrompt(e.target.value)} placeholder="Pergunte ao ClawAI..." style={st.textarea} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                                <button type="button" onClick={() => void sendChatMessage()} disabled={chatSending || !chatPrompt.trim()} style={st.button(true)}>{chatSending ? "Enviando..." : "Enviar"}</button>
-                                <button type="button" onClick={() => setSection("control")} style={st.button()}>Ir para controle</button>
+                            <textarea
+                                value={chatPrompt}
+                                onChange={e => setChatPrompt(e.target.value)}
+                                placeholder="Pergunte ao ClawAI..."
+                                style={{
+                                    ...st.textarea,
+                                    minHeight: 58,
+                                    maxHeight: 80,
+                                }}
+                            />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => void sendChatMessage()}
+                                    disabled={chatSending || !chatPrompt.trim()}
+                                    style={st.button(true)}
+                                >
+                                    {chatSending ? "Enviando..." : "Enviar"}
+                                </button>
                             </div>
                         </div>
                     </div>
