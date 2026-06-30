@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
-import AutonomyPanel from "./AutonomyPanel";
-import BridgePanel from "./BridgePanel";
 import {
     classifyCognition,
+    consultBridge,
     getBridgeProviders,
     listCognitionLearning,
     listCognitionWorkspaces,
     recommendBridgeTool,
     superviseCognition,
+    type BridgeConsultResult,
+    type BridgeProvidersResponse,
+    type BridgeToolDecision,
     type CognitionLearningEntry,
     type CognitionReasoningNode,
     type CognitionTaskClassification,
@@ -21,6 +24,7 @@ import {
 } from "./autonomy";
 import {
     getAutoImplementStatus,
+    runAutoImplement,
     runVerify,
     sendChat,
     startAutoImplement,
@@ -28,243 +32,1052 @@ import {
     type AutoImplementReport,
     type AutoImplementSession,
     type ChatReply,
+    type VerifyResponse,
 } from "./api";
+import {
+    getEvolutionBacklog,
+    getEvolutionHistory,
+    getEvolutionState,
+    rebuildEvolutionBacklog,
+    runEvolutionOnce,
+    startEvolution,
+    stopEvolution,
+    type EvolutionBacklogOverview,
+    type EvolutionCycleRecord,
+    type EvolutionState,
+} from "./evolution";
 
-type TabKey = "dashboard" | "workspace" | "graph" | "agents" | "memory" | "tools" | "control" | "chat";
+type SectionKey = "chat" | "workspace" | "evolution" | "memory" | "control" | "integrations";
 
-type Message = { id: number; role: "user" | "assistant"; text: string; reply?: ChatReply };
+type Message = {
+    id: number;
+    role: "user" | "assistant";
+    text: string;
+    reply?: ChatReply;
+};
 
-const TABS: TabKey[] = ["dashboard", "workspace", "graph", "agents", "memory", "tools", "control", "chat"];
+const SECTIONS: Array<{ key: SectionKey; label: string; hint: string }> = [
+    { key: "chat", label: "Chat", hint: "Converse e peça análise" },
+    { key: "workspace", label: "Workspace", hint: "Projetos e planos" },
+    { key: "evolution", label: "Evolution", hint: "Backlog e ciclos" },
+    { key: "memory", label: "Memory", hint: "Aprendizados" },
+    { key: "control", label: "Control", hint: "Autonomia e verify" },
+    { key: "integrations", label: "Integrations", hint: "Providers e ferramentas" },
+];
 
-function fmtMs(n?: number | null) { return typeof n === "number" && !Number.isNaN(n) ? (n < 1000 ? `${Math.round(n)} ms` : `${(n / 1000).toFixed(2)} s`) : "-"; }
-function fmtDate(v?: string | null) { return v ? new Date(v).toLocaleString() : "-"; }
-function fmtPct(v?: number | null) { return `${Math.round(Math.max(0, Math.min(1, v ?? 0)) * 100)}%`; }
-function short(v?: string | null) { return v ? v.slice(0, 8) : "-"; }
-function pillTone(v?: string | null): React.CSSProperties {
-    const s = (v ?? "").toLowerCase();
-    const map: Record<string, React.CSSProperties> = {
-        queued: { background: "#5b4636", color: "#ffd59a" }, running: { background: "#1f4d3a", color: "#bff2d0" },
-        done: { background: "#234b35", color: "#c8f7d1" }, failed: { background: "#5b2b2b", color: "#ffb6b6" },
-        active: { background: "#2d3e5f", color: "#c6d9ff" }, pending: { background: "#444", color: "#eee" },
-        completed: { background: "#234b35", color: "#c8f7d1" }, success: { background: "#234b35", color: "#c8f7d1" },
+function fmtMs(value?: number | null): string {
+    if (typeof value !== "number" || Number.isNaN(value)) {
+        return "-";
+    }
+    return value < 1000 ? `${Math.round(value)} ms` : `${(value / 1000).toFixed(2)} s`;
+}
+
+function fmtDate(value?: string | null): string {
+    if (!value) {
+        return "-";
+    }
+    try {
+        return new Date(value).toLocaleString();
+    } catch {
+        return value;
+    }
+}
+
+function fmtPct(value?: number | null): string {
+    return `${Math.round(Math.max(0, Math.min(1, value ?? 0)) * 100)}%`;
+}
+
+function fmtStatus(value?: string | null): string {
+    return (value ?? "-").replaceAll("_", " ");
+}
+
+function short(value?: string | null): string {
+    return value ? value.slice(0, 8) : "-";
+}
+
+function styles() {
+    return {
+        shell: {
+            width: 440,
+            minWidth: 440,
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            background: "#171717",
+            borderLeft: "1px solid #2d2d2d",
+            color: "#ddd",
+        } as CSSProperties,
+        header: {
+            padding: 12,
+            borderBottom: "1px solid #2d2d2d",
+            display: "grid",
+            gap: 10,
+        } as CSSProperties,
+        titleRow: {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 8,
+        } as CSSProperties,
+        title: { fontWeight: 800, fontSize: 16, lineHeight: 1.2 } as CSSProperties,
+        subtitle: { marginTop: 2, fontSize: 11, color: "#9ca3af" } as CSSProperties,
+        infoCard: {
+            border: "1px solid #2c2c2c",
+            borderRadius: 12,
+            padding: 10,
+            background: "#1f1f1f",
+        } as CSSProperties,
+        pill: {
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "2px 8px",
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 700,
+            background: "#343434",
+            color: "#ddd",
+            whiteSpace: "nowrap",
+        } as CSSProperties,
+        sectionBar: {
+            display: "grid",
+            gap: 8,
+        } as CSSProperties,
+        sectionTabs: {
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 8,
+        } as CSSProperties,
+        tabButton: (active: boolean): CSSProperties => ({
+            height: 34,
+            padding: "0 10px",
+            borderRadius: 10,
+            border: active ? "1px solid #64748b" : "1px solid #2f2f2f",
+            background: active ? "#364152" : "#242424",
+            color: active ? "#fff" : "#ddd",
+            cursor: "pointer",
+            textAlign: "left",
+        }),
+        tabLabel: { display: "block", fontWeight: 700, fontSize: 12 } as CSSProperties,
+        tabHint: { display: "block", fontSize: 10, marginTop: 1, color: "#9ca3af" } as CSSProperties,
+        content: {
+            flex: 1,
+            overflow: "auto",
+            padding: 12,
+            display: "grid",
+            gap: 10,
+        } as CSSProperties,
+        card: {
+            border: "1px solid #2d2d2d",
+            borderRadius: 12,
+            padding: 12,
+            background: "#1f1f1f",
+        } as CSSProperties,
+        cardTitle: { fontSize: 13, fontWeight: 800, color: "#fff" } as CSSProperties,
+        small: { fontSize: 11, color: "#9ca3af" } as CSSProperties,
+        input: {
+            width: "100%",
+            boxSizing: "border-box",
+            borderRadius: 10,
+            border: "1px solid #3a3a3a",
+            background: "#242424",
+            color: "#ddd",
+            padding: 10,
+            outline: "none",
+        } as CSSProperties,
+        textarea: {
+            width: "100%",
+            minHeight: 88,
+            resize: "vertical",
+            boxSizing: "border-box",
+            borderRadius: 10,
+            border: "1px solid #3a3a3a",
+            background: "#242424",
+            color: "#ddd",
+            padding: 10,
+            outline: "none",
+        } as CSSProperties,
+        button: (active = false, danger = false): CSSProperties => ({
+            height: 34,
+            padding: "0 12px",
+            borderRadius: 10,
+            border: danger ? "1px solid #7f1d1d" : active ? "1px solid #64748b" : "1px solid #3a3a3a",
+            background: danger ? "#3a1b1b" : active ? "#364152" : "#242424",
+            color: danger ? "#ffb4b4" : active ? "#fff" : "#ddd",
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+        }),
+        row: { display: "flex", gap: 8, flexWrap: "wrap" } as CSSProperties,
+        grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } as CSSProperties,
+        grid3: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 } as CSSProperties,
+        grid4: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 } as CSSProperties,
+        mutedNote: {
+            borderLeft: "3px solid #60a5fa",
+            background: "#162131",
+            padding: 10,
+            borderRadius: 10,
+            fontSize: 11,
+            color: "#dbeafe",
+            lineHeight: 1.45,
+        } as CSSProperties,
+        message: (role: "user" | "assistant"): CSSProperties => ({
+            border: "1px solid #2d2d2d",
+            borderRadius: 12,
+            padding: 10,
+            background: role === "assistant" ? "#1f1f1f" : "#18232f",
+        }),
+        messageRole: (role: "user" | "assistant"): CSSProperties => ({
+            fontSize: 11,
+            color: role === "assistant" ? "#67e8f9" : "#86efac",
+            marginBottom: 6,
+            fontWeight: 700,
+        }),
+        listItem: (selected = false): CSSProperties => ({
+            textAlign: "left",
+            border: selected ? "1px solid #60a5fa" : "1px solid #2d2d2d",
+            borderRadius: 10,
+            padding: 10,
+            background: selected ? "#183044" : "#1f1f1f",
+            color: "#ddd",
+            cursor: "pointer",
+        }),
     };
-    return map[s] ?? { background: "#363636", color: "#ddd" };
 }
-function Pill({ value }: { value?: string | null }) { return <span style={{ display: "inline-flex", padding: "2px 8px", borderRadius: 999, fontSize: 11, fontWeight: 600, ...pillTone(value) }}>{value ? value.replaceAll("_", " ") : "-"}</span>; }
-function card(): React.CSSProperties { return { border: "1px solid #333", borderRadius: 10, padding: 10, background: "#1f1f1f" }; }
-function input(): React.CSSProperties { return { width: "100%", background: "#252526", color: "#ddd", border: "1px solid #444", borderRadius: 8, padding: 10, boxSizing: "border-box" }; }
-function btn(active = false): React.CSSProperties { return { height: 32, padding: "0 10px", border: "1px solid #444", borderRadius: 8, background: active ? "#364151" : "#262626", color: "#ddd", cursor: "pointer" }; }
-function metric(label: string, value: string | number, hint?: string) {
-    return <div style={{ ...card(), display: "grid", gap: 4 }}><div style={{ fontSize: 11, color: "#9aa0a6" }}>{label}</div><div style={{ fontSize: 20, color: "#fff", fontWeight: 800 }}>{value}</div><div style={{ fontSize: 11, color: "#9aa0a6" }}>{hint ?? ""}</div></div>;
+
+function StatusPill({ value }: { value?: string | null }) {
+    const status = fmtStatus(value);
+    const lower = status.toLowerCase();
+    const tone: CSSProperties = lower.includes("running") || lower.includes("active")
+        ? { background: "#1f4d3a", color: "#bff2d0" }
+        : lower.includes("done") || lower.includes("success") || lower.includes("completed")
+            ? { background: "#234b35", color: "#c8f7d1" }
+            : lower.includes("failed") || lower.includes("error")
+                ? { background: "#5b2b2b", color: "#ffb6b6" }
+                : lower.includes("queued") || lower.includes("pending")
+                    ? { background: "#5b4636", color: "#ffd59a" }
+                    : { background: "#343434", color: "#ddd" };
+
+    return <span style={{ ...styles().pill, ...tone }}>{status}</span>;
 }
-function nodeView(nodes: CognitionReasoningNode[], id = "root", depth = 0): React.ReactNode {
-    const node = nodes.find(n => n.node_id === id); if (!node) return null;
-    return <div style={{ marginLeft: depth * 10, paddingLeft: depth ? 10 : 0, borderLeft: depth ? "1px solid #333" : undefined }}>
-        <div style={{ ...card(), marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><div style={{ color: "#fff", fontWeight: 700 }}>{node.label}</div><Pill value={node.kind} /></div>
-            <div style={{ marginTop: 4, fontSize: 11, color: "#9aa0a6" }}>Score {node.score.toFixed(2)}</div>
-            {node.details ? <div style={{ marginTop: 6, fontSize: 11, whiteSpace: "pre-wrap" }}>{node.details}</div> : null}
+
+function Metric({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+    const s = styles();
+    return (
+        <div style={s.card}>
+            <div style={s.small}>{label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginTop: 4 }}>{value}</div>
+            {hint ? <div style={{ ...s.small, marginTop: 4 }}>{hint}</div> : null}
         </div>
-        {node.children.map(child => <div key={child}>{nodeView(nodes, child, depth + 1)}</div>)}
-    </div>;
+    );
+}
+
+function ProgressBar({ value }: { value: number }) {
+    const pct = Math.max(0, Math.min(100, Math.round(value * 100)));
+    return (
+        <div style={{ width: "100%", height: 8, background: "#2b2b2b", borderRadius: 999, overflow: "hidden" }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: "#60a5fa" }} />
+        </div>
+    );
+}
+
+function GraphPreview({ nodes, rootId = "root", depth = 0 }: { nodes: CognitionReasoningNode[]; rootId?: string; depth?: number }) {
+    const node = nodes.find(item => item.node_id === rootId);
+    if (!node) {
+        return null;
+    }
+
+    const s = styles();
+    return (
+        <div style={{ marginLeft: depth * 12, paddingLeft: depth ? 10 : 0, borderLeft: depth ? "1px solid #303030" : undefined }}>
+            <div style={{ ...s.infoCard, marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ color: "#fff", fontWeight: 700 }}>{node.label}</div>
+                    <StatusPill value={node.kind} />
+                </div>
+                <div style={{ marginTop: 4, ...s.small }}>Score {node.score.toFixed(2)}</div>
+                {node.details ? <div style={{ marginTop: 6, fontSize: 11, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>{node.details}</div> : null}
+            </div>
+            {node.children.map(child => <GraphPreview key={child} nodes={nodes} rootId={child} depth={depth + 1} />)}
+        </div>
+    );
+}
+
+function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
+    const s = styles();
+    return <button type="button" onClick={onClick} style={s.button()}>{label}</button>;
 }
 
 export default function OperationsHub() {
-    const [tab, setTab] = useState<TabKey>("dashboard");
-    const [autonomy, setAutonomy] = useState<AutonomyState | null>(null);
-    const [providers, setProviders] = useState<{ providers: string[]; tools: string[]; default_roles: string[] } | null>(null);
-    const [workspaces, setWorkspaces] = useState<CognitionWorkspace[]>([]);
-    const [learning, setLearning] = useState<CognitionLearningEntry[]>([]);
-    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
-    const [selectedLearningId, setSelectedLearningId] = useState("");
+    const s = styles();
+    const [section, setSection] = useState<SectionKey>("chat");
+
+    const [messages, setMessages] = useState<Message[]>([
+        { id: 1, role: "assistant", text: "ClawAI pronto para operar. Escolha uma tarefa ou faça uma pergunta." },
+    ]);
+    const [chatPrompt, setChatPrompt] = useState("");
+    const [chatSending, setChatSending] = useState(false);
+
     const [objective, setObjective] = useState("");
-    const [prompt, setPrompt] = useState("");
     const [testCommand, setTestCommand] = useState("uv run python -m pytest -q");
     const [maxIterations, setMaxIterations] = useState(3);
     const [maxFiles, setMaxFiles] = useState(15);
-    const [messages, setMessages] = useState<Message[]>([{ id: 1, role: "assistant", text: "ClawAI pronto para operar." }]);
-    const [chatPrompt, setChatPrompt] = useState("");
-    const [busy, setBusy] = useState(false);
-    const [verifyRunning, setVerifyRunning] = useState(false);
-    const [verifyResult, setVerifyResult] = useState<unknown>(null);
+    const [taskBusy, setTaskBusy] = useState(false);
+    const [controlError, setControlError] = useState("");
+
+    const [autonomyState, setAutonomyState] = useState<AutonomyState | null>(null);
+    const [bridgeProviders, setBridgeProviders] = useState<BridgeProvidersResponse | null>(null);
+    const [cognitionWorkspaces, setCognitionWorkspaces] = useState<CognitionWorkspace[]>([]);
+    const [cognitionLearning, setCognitionLearning] = useState<CognitionLearningEntry[]>([]);
+    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+    const [selectedLearningId, setSelectedLearningId] = useState("");
+
+    const [evolutionState, setEvolutionState] = useState<EvolutionState | null>(null);
+    const [evolutionBacklog, setEvolutionBacklog] = useState<EvolutionBacklogOverview | null>(null);
+    const [evolutionHistory, setEvolutionHistory] = useState<EvolutionCycleRecord[]>([]);
+
     const [autoSession, setAutoSession] = useState<AutoImplementSession | null>(null);
     const [autoReport, setAutoReport] = useState<AutoImplementReport | null>(null);
-    const [autoRunning, setAutoRunning] = useState(false);
-    const [classification, setClassification] = useState<CognitionTaskClassification | null>(null);
-    const [decision, setDecision] = useState<{ recommended_tool: string; reason: string; confidence: number; winner_role: string; source: string } | null>(null);
-    const [debate, setDebate] = useState<{ final_answer: string; participants: { role: string; provider: string; model: string; content: string; elapsed_ms: number; error?: string }[]; decision: { recommended_tool: string; reason: string; confidence: number; winner_role: string; source: string }; heuristic_tool: string; heuristic_reason: string } | null>(null);
-    const pollLock = useRef(false);
-    const nextId = useRef(2);
+    const [verifyResult, setVerifyResult] = useState<VerifyResponse | null>(null);
 
-    async function refresh() {
+    const nextId = useRef(2);
+    const pollingLock = useRef(false);
+
+    async function refreshAll() {
         try {
-            const [a, p, w, l] = await Promise.all([getAutonomyState(), getBridgeProviders(), listCognitionWorkspaces(), listCognitionLearning(40)]);
-            setAutonomy(a); setProviders(p); setWorkspaces(w); setLearning(l);
-        } catch (e) { console.error(e); }
+            const [autonomy, providers, workspaces, learning, evoState, evoBacklog, evoHistory] = await Promise.all([
+                getAutonomyState(),
+                getBridgeProviders(),
+                listCognitionWorkspaces(),
+                listCognitionLearning(40),
+                getEvolutionState(),
+                getEvolutionBacklog(),
+                getEvolutionHistory(12),
+            ]);
+
+            setAutonomyState(autonomy);
+            setBridgeProviders(providers);
+            setCognitionWorkspaces(workspaces);
+            setCognitionLearning(learning);
+            setEvolutionState(evoState);
+            setEvolutionBacklog(evoBacklog);
+            setEvolutionHistory(evoHistory);
+        } catch (error) {
+            console.error("Falha ao atualizar a interface.", error);
+        }
     }
 
-    useEffect(() => { void refresh(); }, []);
     useEffect(() => {
-        const t = window.setInterval(() => { void refresh(); if (autoSession?.run_id && autoRunning) void refreshAuto(autoSession.run_id); }, 2500);
-        return () => window.clearInterval(t);
-    }, [autoSession?.run_id, autoRunning]);
+        void refreshAll();
+    }, []);
 
-    useEffect(() => { if (workspaces.length && !workspaces.some(w => w.workspace_id === selectedWorkspaceId)) setSelectedWorkspaceId(workspaces[0].workspace_id); }, [workspaces, selectedWorkspaceId]);
-    useEffect(() => { if (learning.length && !learning.some(l => l.entry_id === selectedLearningId)) setSelectedLearningId(learning[0].entry_id); }, [learning, selectedLearningId]);
+    useEffect(() => {
+        const timer = window.setInterval(() => {
+            void refreshAll();
+            if (autoSession?.run_id) {
+                void refreshAutoSession(autoSession.run_id);
+            }
+        }, 3000);
+        return () => window.clearInterval(timer);
+    }, [autoSession?.run_id]);
 
-    const selectedWorkspace = useMemo(() => workspaces.find(w => w.workspace_id === selectedWorkspaceId) ?? workspaces[0] ?? null, [workspaces, selectedWorkspaceId]);
-    const selectedLearning = useMemo(() => learning.find(l => l.entry_id === selectedLearningId) ?? learning[0] ?? null, [learning, selectedLearningId]);
-    const queue = autonomy?.queue ?? []; const plans = autonomy?.plans ?? []; const memory = autonomy?.recent_memory ?? [];
-    const latestWorkspace = workspaces[0] ?? null; const latestLearning = learning[0] ?? null; const latestPlan = plans[0] ?? null; const activeQueue = queue.filter(q => q.status === "queued" || q.status === "running");
-    const currentNodes = selectedWorkspace?.reasoning_graph ?? [];
+    useEffect(() => {
+        if (!cognitionWorkspaces.length) {
+            setSelectedWorkspaceId("");
+            return;
+        }
+        if (!cognitionWorkspaces.some(ws => ws.workspace_id === selectedWorkspaceId)) {
+            setSelectedWorkspaceId(cognitionWorkspaces[0].workspace_id);
+        }
+    }, [cognitionWorkspaces, selectedWorkspaceId]);
+
+    useEffect(() => {
+        if (!cognitionLearning.length) {
+            setSelectedLearningId("");
+            return;
+        }
+        if (!cognitionLearning.some(item => item.entry_id === selectedLearningId)) {
+            setSelectedLearningId(cognitionLearning[0].entry_id);
+        }
+    }, [cognitionLearning, selectedLearningId]);
+
+    const selectedWorkspace = useMemo(
+        () => cognitionWorkspaces.find(ws => ws.workspace_id === selectedWorkspaceId) ?? cognitionWorkspaces[0] ?? null,
+        [cognitionWorkspaces, selectedWorkspaceId],
+    );
+
+    const selectedLearning = useMemo(
+        () => cognitionLearning.find(item => item.entry_id === selectedLearningId) ?? cognitionLearning[0] ?? null,
+        [cognitionLearning, selectedLearningId],
+    );
+
+    const queue = autonomyState?.queue ?? [];
+    const plans = autonomyState?.plans ?? [];
+    const memory = autonomyState?.recent_memory ?? [];
+    const activeQueue = queue.filter(item => item.status === "queued" || item.status === "running");
+    const latestPlan = plans[0] ?? null;
+    const topBacklog = evolutionBacklog?.top_item ?? evolutionBacklog?.items?.[0] ?? null;
+    const activeEvolution = evolutionState?.enabled ?? false;
+    const graphNodes = selectedWorkspace?.reasoning_graph ?? [];
 
     async function sendChatMessage() {
-        const text = chatPrompt.trim(); if (!text || busy) return; setBusy(true); setChatPrompt("");
-        const userId = nextId.current++; const assistantId = nextId.current++;
+        const text = chatPrompt.trim();
+        if (!text || chatSending) {
+            return;
+        }
+
+        setChatSending(true);
+        setChatPrompt("");
+        const userId = nextId.current++;
+        const assistantId = nextId.current++;
         setMessages(prev => [...prev, { id: userId, role: "user", text }, { id: assistantId, role: "assistant", text: "Pensando..." }]);
-        try { const reply = await sendChat(text); setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: reply.answer, reply } : m)); }
-        catch (e) { console.error(e); setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: "Não consegui responder agora." } : m)); }
-        finally { setBusy(false); }
-    }
 
-    async function runSupervision() {
-        const text = prompt.trim() || objective.trim(); if (!text || busy) return; setBusy(true);
         try {
-            const result = await superviseCognition({ prompt: text, objective: objective.trim() || text });
-            setClassification(result.classification); setDecision(result.decision); setDebate({
-                final_answer: result.debate.final_answer,
-                participants: result.debate.participants,
-                decision: result.debate.decision,
-                heuristic_tool: result.debate.heuristic_tool,
-                heuristic_reason: result.debate.heuristic_reason,
-            });
-            setSelectedWorkspaceId(result.workspace.workspace_id); setSelectedLearningId(result.learning_entry.entry_id); setTab("workspace"); void refresh();
-        } catch (e) { console.error(e); }
-        finally { setBusy(false); }
+            const reply = await sendChat(text);
+            setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, text: reply.answer, reply } : message));
+        } catch (error) {
+            console.error(error);
+            setMessages(prev => prev.map(message => message.id === assistantId ? { ...message, text: "Não consegui responder agora." } : message));
+        } finally {
+            setChatSending(false);
+        }
     }
 
-    async function runClassify() { const text = prompt.trim() || objective.trim(); if (!text || busy) return; setBusy(true); try { setClassification(await classifyCognition(text)); setTab("agents"); } catch (e) { console.error(e); } finally { setBusy(false); } }
-    async function runToolChoice() { const text = prompt.trim() || objective.trim(); if (!text || busy) return; setBusy(true); try { setDecision(await recommendBridgeTool({ prompt: text, system_prompt: objective.trim() || null })); setTab("tools"); } catch (e) { console.error(e); } finally { setBusy(false); } }
-    async function runDebate() { const text = prompt.trim() || objective.trim(); if (!text || busy) return; setBusy(true); try { const r = await consultBridge({ prompt: text, system_prompt: objective.trim() || null }); setDecision(r.decision); setDebate({ final_answer: r.final_answer, participants: r.participants, decision: r.decision, heuristic_tool: r.heuristic_tool, heuristic_reason: r.heuristic_reason }); setTab("graph"); } catch (e) { console.error(e); } finally { setBusy(false); } }
-    async function enqueueObjective() { const text = objective.trim(); if (!text || busy) return; setBusy(true); try { await enqueueAutonomy({ objective: text, test_command: testCommand.trim() || "uv run python -m pytest -q", max_iterations: maxIterations, max_files: maxFiles }); void refresh(); setTab("control"); } catch (e) { console.error(e); } finally { setBusy(false); } }
-    async function runVerifyProject() { setVerifyRunning(true); try { setVerifyResult(await runVerify()); setTab("control"); } catch (e) { console.error(e); setVerifyResult({ error: String(e) }); } finally { setVerifyRunning(false); } }
-    async function startAutopilot() { const text = objective.trim(); if (!text || autoRunning) return; setAutoRunning(true); try { const session = await startAutoImplement(text, testCommand.trim() || "uv run python -m pytest -q", maxIterations, maxFiles); setAutoSession(session); void refreshAuto(session.run_id); } catch (e) { setAutoRunning(false); console.error(e); } }
-    async function refreshAuto(runId: string) { if (pollLock.current) return; pollLock.current = true; try { const latest = await getAutoImplementStatus(runId); setAutoSession(latest); if (["success", "failed", "cancelled", "cancel_requested"].includes(latest.status)) { setAutoRunning(false); setAutoReport(latest.result ?? null); } } catch (e) { console.error(e); } finally { pollLock.current = false; } }
-    async function cancelAutopilot() { if (!autoSession) return; try { const latest = await stopAutoImplement(autoSession.run_id); setAutoSession(latest); setAutoRunning(false); } catch (e) { console.error(e); } }
+    async function queueObjective() {
+        const text = objective.trim();
+        if (!text) {
+            return;
+        }
 
-    const graphNodes = currentNodes.length ? currentNodes : debate ? [
-        { node_id: "root", label: debate.decision.recommended_tool, kind: "decision", score: debate.decision.confidence, details: debate.decision.reason, children: [] },
-    ] as CognitionReasoningNode[] : [];
+        setTaskBusy(true);
+        setControlError("");
+        try {
+            await enqueueAutonomy({
+                objective: text,
+                test_command: testCommand.trim() || "uv run python -m pytest -q",
+                max_iterations: maxIterations,
+                max_files: maxFiles,
+            });
+            setSection("control");
+            await refreshAll();
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao enfileirar objetivo.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function startAutopilot() {
+        const text = objective.trim();
+        if (!text) {
+            return;
+        }
+
+        setTaskBusy(true);
+        setControlError("");
+        try {
+            const session = await startAutoImplement(
+                text,
+                testCommand.trim() || "uv run python -m pytest -q",
+                maxIterations,
+                maxFiles,
+            );
+            setAutoSession(session);
+            setSection("control");
+            void refreshAutoSession(session.run_id);
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao iniciar a autonomia direta.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function refreshAutoSession(runId: string) {
+        if (pollingLock.current) {
+            return;
+        }
+
+        pollingLock.current = true;
+        try {
+            const latest = await getAutoImplementStatus(runId);
+            setAutoSession(latest);
+            if (["success", "failed", "cancelled", "cancel_requested"].includes(latest.status)) {
+                setAutoReport(latest.result ?? null);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            pollingLock.current = false;
+        }
+    }
+
+    async function cancelAutopilot() {
+        if (!autoSession) {
+            return;
+        }
+
+        setTaskBusy(true);
+        try {
+            const latest = await stopAutoImplement(autoSession.run_id);
+            setAutoSession(latest);
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao cancelar a autonomia.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function runVerifyProject() {
+        setTaskBusy(true);
+        setControlError("");
+        try {
+            const result = await runVerify();
+            setVerifyResult(result);
+            setSection("control");
+        } catch (error) {
+            setVerifyResult({ success: false, return_code: -1, stdout: "", stderr: String(error) });
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function runEvolutionAction(action: "start" | "stop" | "once" | "rebuild") {
+        setTaskBusy(true);
+        setControlError("");
+        try {
+            if (action === "start") {
+                await startEvolution();
+            } else if (action === "stop") {
+                await stopEvolution();
+            } else if (action === "once") {
+                await runEvolutionOnce();
+            } else {
+                await rebuildEvolutionBacklog();
+            }
+            await refreshAll();
+            setSection("evolution");
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao executar o ciclo de evolução.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function runQuickClassify() {
+        const text = objective.trim();
+        if (!text) {
+            return;
+        }
+        setTaskBusy(true);
+        try {
+            await classifyCognition(text);
+            setSection("control");
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao classificar o objetivo.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function runQuickDebate() {
+        const text = objective.trim();
+        if (!text) {
+            return;
+        }
+        setTaskBusy(true);
+        try {
+            await consultBridge({ prompt: text, system_prompt: text });
+            setSection("workspace");
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao executar o debate.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function runQuickSupervision() {
+        const text = objective.trim();
+        if (!text) {
+            return;
+        }
+        setTaskBusy(true);
+        try {
+            const result = await superviseCognition({ prompt: text, objective: text });
+            setSelectedWorkspaceId(result.workspace.workspace_id);
+            setSelectedLearningId(result.learning_entry.entry_id);
+            setSection("workspace");
+            await refreshAll();
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao supervisionar o objetivo.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    async function runQuickToolChoice() {
+        const text = objective.trim();
+        if (!text) {
+            return;
+        }
+        setTaskBusy(true);
+        try {
+            await recommendBridgeTool({ prompt: text, system_prompt: text });
+            setSection("integrations");
+        } catch (error) {
+            setControlError(error instanceof Error ? error.message : "Falha ao escolher ferramenta.");
+        } finally {
+            setTaskBusy(false);
+        }
+    }
+
+    const filteredLearning = cognitionLearning;
+    const recentHistory = evolutionHistory.slice(0, 5);
+    const recentWorkspaces = cognitionWorkspaces.slice(0, 6);
 
     return (
-        <div style={{ width: 440, minWidth: 440, height: "100%", display: "flex", flexDirection: "column", background: "#181818", borderLeft: "1px solid #333" }}>
-            <div style={{ padding: 12, borderBottom: "1px solid #333", display: "flex", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ display: "grid" }}>
-                    <span style={{ color: "#ddd", fontWeight: 800 }}>ClawAI Operations Center</span>
-                    <span style={{ fontSize: 11, color: "#9aa0a6" }}>Dashboard cognitivo, workspaces, agentes, memória e controle</span>
+        <aside style={s.shell}>
+            <div style={s.header}>
+                <div style={s.titleRow}>
+                    <div>
+                        <div style={s.title}>ClawAI Studio</div>
+                        <div style={s.subtitle}>Chat, workspace, evolução, memória e integrações em um só lugar</div>
+                    </div>
+                    <StatusPill value={autoSession?.status ?? (autoSession ? "running" : activeEvolution ? "running" : "pending")} />
                 </div>
-                <Pill value={autoSession?.status ?? (autoRunning ? "running" : "pending")} />
-            </div>
 
-            <div style={{ padding: 10, borderBottom: "1px solid #2b2b2b", background: "#1b1b1b", display: "grid", gap: 8 }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-                    {TABS.map(t => <button key={t} type="button" onClick={() => setTab(t)} style={btn(tab === t)}>{t}</button>)}
+                <div style={s.infoCard}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>Workspace atual</div>
+                    <div style={{ marginTop: 4, ...s.small, lineHeight: 1.45 }}>
+                        O explorador está conectado ao repositório montado pelo backend. Para trabalhar em outro projeto, o backend precisa ser iniciado nesse diretório ou ganhar suporte explícito a múltiplos workspaces.
+                    </div>
                 </div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    <input value={objective} onChange={e => setObjective(e.target.value)} placeholder="Objetivo principal" style={input()} />
-                    <input value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Prompt de supervisão / debate" style={input()} />
+                    <div style={s.infoCard}>
+                        <div style={s.small}>Objetivos</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginTop: 4 }}>{queue.length}</div>
+                        <div style={s.small}>{activeQueue.length} ativos</div>
+                    </div>
+                    <div style={s.infoCard}>
+                        <div style={s.small}>Evolution</div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: "#fff", marginTop: 4 }}>{evolutionState?.backlog_size ?? 0}</div>
+                        <div style={s.small}>itens no backlog</div>
+                    </div>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 110px 110px", gap: 8 }}>
-                    <input value={testCommand} onChange={e => setTestCommand(e.target.value)} placeholder="Comando de teste" style={input()} />
-                    <input type="number" min={1} max={5} value={maxIterations} onChange={e => setMaxIterations(Number(e.target.value) || 1)} style={input()} />
-                    <input type="number" min={1} max={20} value={maxFiles} onChange={e => setMaxFiles(Number(e.target.value) || 1)} style={input()} />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
-                    <button type="button" onClick={() => void enqueueObjective()} disabled={busy || !objective.trim()} style={btn()}>Enfileirar</button>
-                    <button type="button" onClick={() => void startAutopilot()} disabled={autoRunning || !objective.trim()} style={btn()}>Autopilot</button>
-                    <button type="button" onClick={() => void runVerifyProject()} disabled={verifyRunning} style={btn()}>{verifyRunning ? "Verificando..." : "Verify"}</button>
-                    <button type="button" onClick={() => void runClassify()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Classificar</button>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    <button type="button" onClick={() => void runDebate()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Debate</button>
-                    <button type="button" onClick={() => void runSupervision()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Supervisionar</button>
-                    <button type="button" onClick={() => void runToolChoice()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Ferramenta</button>
+
+                <div style={s.sectionTabs}>
+                    {SECTIONS.map(item => (
+                        <button key={item.key} type="button" onClick={() => setSection(item.key)} style={s.tabButton(section === item.key)}>
+                            <span style={s.tabLabel}>{item.label}</span>
+                            <span style={s.tabHint}>{item.hint}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <div style={{ flex: 1, overflow: "auto", padding: 12, display: "grid", gap: 10 }}>
-                {tab === "dashboard" ? <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8 }}>
-                        {metric("Objetivos na fila", queue.length, `${activeQueue.length} ativos`)}
-                        {metric("Workspaces", workspaces.length, `${learning.length} entradas de aprendizado`)}
-                        {metric("Planos", plans.length, `${memory.length} memórias`)}
-                        {metric("Providers", providers?.providers.length ?? 0, `${providers?.tools.length ?? 0} ferramentas`)}
-                    </div>
-                    <div style={card()}>
-                        <div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Fila</div>
-                        <div style={{ display: "grid", gap: 8 }}>
-                            {queue.slice(0, 4).map(item => <div key={item.queue_id} style={card()}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>{item.objective}</div><Pill value={item.status} /></div><div style={{ marginTop: 4, fontSize: 11, color: "#9aa0a6" }}>Ordem {item.order} · {fmtDate(item.enqueued_at)}</div></div>)}
+            <div style={s.content}>
+                {section === "chat" ? (
+                    <>
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Chat principal</div>
+                            <div style={{ ...s.small, marginTop: 4, lineHeight: 1.45 }}>
+                                Aqui o chat fica sempre visível e não depende de atalhos escondidos. Perguntas longas, instruções de implementação e análise de código passam por aqui.
+                            </div>
                         </div>
-                    </div>
-                    <div style={card()}>
-                        <div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Workspaces recentes</div>
-                        <div style={{ display: "grid", gap: 8 }}>
-                            {workspaces.slice(0, 4).map(ws => <button key={ws.workspace_id} type="button" onClick={() => { setSelectedWorkspaceId(ws.workspace_id); setTab("workspace"); }} style={{ textAlign: "left", border: selectedWorkspaceId === ws.workspace_id ? "1px solid #4FC3F7" : "1px solid #333", borderRadius: 8, padding: 8, background: selectedWorkspaceId === ws.workspace_id ? "#233240" : "#242424", color: "#ddd" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>{ws.objective}</div><Pill value={ws.classification.category} /></div><div style={{ marginTop: 4, fontSize: 11, color: "#9aa0a6" }}>Atualizado {fmtDate(ws.updated_at)}</div></button>)}
+
+                        <div style={s.card}>
+                            <div style={s.row}>
+                                <QuickAction label="Analisar projeto" onClick={() => setChatPrompt("Analise o estado atual do projeto e diga qual é o próximo passo mais importante.")} />
+                                <QuickAction label="Gerar backlog" onClick={() => setChatPrompt("Gere um backlog técnico priorizado para aumentar a autonomia do ClawAI.")} />
+                                <QuickAction label="Corrigir UI" onClick={() => setChatPrompt("Corrija a interface para ficar mais intuitiva e consistente.")} />
+                            </div>
+                            <div style={{ marginTop: 10 }}>
+                                <textarea
+                                    value={chatPrompt}
+                                    onChange={e => setChatPrompt(e.target.value)}
+                                    placeholder="Pergunte ao ClawAI..."
+                                    style={s.textarea}
+                                />
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 }}>
+                                <button type="button" onClick={() => void sendChatMessage()} disabled={chatSending || !chatPrompt.trim()} style={s.button(true)}>
+                                    {chatSending ? "Enviando..." : "Enviar"}
+                                </button>
+                                <button type="button" onClick={() => setSection("control")} style={s.button()}>
+                                    Ir para controle
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </> : null}
 
-                {tab === "workspace" ? <>
-                    <AutonomyPanel onBack={() => setTab("dashboard")} />
-                    <div style={card()}>
-                        <div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Workspace inteligente</div>
-                        {selectedWorkspace ? <>
-                            <div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700 }}>{selectedWorkspace.objective}</div><Pill value={selectedWorkspace.classification.category} /></div>
-                            <div style={{ marginTop: 6, fontSize: 11, color: "#9aa0a6" }}>Workspace {short(selectedWorkspace.workspace_id)} · {fmtDate(selectedWorkspace.updated_at)}</div>
-                            <div style={{ marginTop: 8, fontSize: 12, color: "#ddd" }}>{selectedWorkspace.classification.rationale}</div>
-                            <div style={{ marginTop: 8, border: "1px solid #333", borderRadius: 8, padding: 8, background: "#242424" }}><div style={{ fontSize: 11, color: "#9aa0a6" }}>Debate final</div><div style={{ marginTop: 4, whiteSpace: "pre-wrap", color: "#ddd", fontSize: 12 }}>{selectedWorkspace.debate_summary}</div></div>
-                        </> : <div style={{ color: "#9aa0a6", fontSize: 12 }}>Nenhum workspace selecionado.</div>}
-                    </div>
-                </> : null}
+                        <div style={{ display: "grid", gap: 8 }}>
+                            {messages.map(message => (
+                                <div key={message.id} style={s.message(message.role)}>
+                                    <div style={s.messageRole(message.role)}>{message.role === "assistant" ? "ClawAI" : "Você"}</div>
+                                    <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.5, color: "#ddd" }}>{message.text}</div>
+                                    {message.role === "assistant" && message.reply?.timings ? (
+                                        <div style={{ marginTop: 8, ...s.small, lineHeight: 1.5 }}>
+                                            <div>Provider: {message.reply.provider ?? "-"} · Modelo: {message.reply.model ?? "-"}</div>
+                                            <div>Memória: {String(message.reply.used_memory)} · Web: {String(message.reply.requires_web)}</div>
+                                            <div>Total: {fmtMs(message.reply.timings.total_ms)}</div>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                ) : null}
 
-                {tab === "graph" ? <div style={card()}>{graphNodes.length ? nodeView(graphNodes) : <div style={{ color: "#9aa0a6", fontSize: 12 }}>Nenhum grafo disponível.</div>}</div> : null}
+                {section === "workspace" ? (
+                    <>
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Workspace cognitivo</div>
+                            <div style={{ ...s.small, marginTop: 4, lineHeight: 1.45 }}>
+                                Esta seção mostra o espaço de raciocínio do ClawAI: workspaces, classificação, decisão e grafo de raciocínio. O sistema de arquivos do projeto continua no explorador à esquerda.
+                            </div>
+                        </div>
 
-                {tab === "agents" ? <div style={{ display: "grid", gap: 8 }}>
-                    <AgentCard title="Supervisor" status={classification ? "completed" : "pending"} detail={classification ? `${classification.category} → ${classification.recommended_tool}\n${classification.rationale}` : "Aguardando classificação."} />
-                    <AgentCard title="Planner" status={selectedWorkspace?.classification.parallel_roles.includes("planner") ? "running" : "pending"} detail={currentNodes.find(node => node.kind === "participant" && node.label.startsWith("planner"))?.details ?? "Sem saída do planner."} />
-                    <AgentCard title="Coder" status={selectedWorkspace?.classification.parallel_roles.includes("coder") ? "running" : "pending"} detail={currentNodes.find(node => node.kind === "participant" && node.label.startsWith("coder"))?.details ?? "Sem saída do coder."} />
-                    <AgentCard title="Reviewer" status={selectedWorkspace?.classification.parallel_roles.includes("reviewer") ? "running" : "pending"} detail={currentNodes.find(node => node.kind === "participant" && node.label.startsWith("reviewer"))?.details ?? "Sem saída do reviewer."} />
-                    <AgentCard title="Juiz" status={decision ? "completed" : "pending"} detail={decision ? `${decision.recommended_tool}\n${decision.reason}` : "Aguardando decisão final."} />
-                </div> : null}
+                        <div style={s.card}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                                <div style={s.cardTitle}>Workspaces recentes</div>
+                                <Pill value={selectedWorkspace?.classification.category ?? "-"} />
+                            </div>
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                                {recentWorkspaces.length ? recentWorkspaces.map(ws => (
+                                    <button
+                                        key={ws.workspace_id}
+                                        type="button"
+                                        onClick={() => setSelectedWorkspaceId(ws.workspace_id)}
+                                        style={s.listItem(selectedWorkspaceId === ws.workspace_id)}
+                                    >
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                            <div style={{ fontWeight: 700, color: "#fff" }}>{ws.objective}</div>
+                                            <Pill value={ws.classification.category} />
+                                        </div>
+                                        <div style={{ marginTop: 4, ...s.small }}>Atualizado {fmtDate(ws.updated_at)}</div>
+                                    </button>
+                                )) : <div style={s.small}>Nenhum workspace encontrado ainda.</div>}
+                            </div>
+                        </div>
 
-                {tab === "memory" ? <div style={{ display: "grid", gap: 8 }}>
-                    <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Buscar na memória" style={input()} />
-                    {selectedLearning ? <div style={card()}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700 }}>{selectedLearning.objective}</div><Pill value={selectedLearning.category} /></div><div style={{ marginTop: 6, fontSize: 11, color: "#9aa0a6" }}>{fmtDate(selectedLearning.timestamp)}</div><div style={{ marginTop: 6, fontSize: 12, color: "#ddd", whiteSpace: "pre-wrap" }}>{selectedLearning.summary}</div></div> : null}
-                    {learning.filter(item => !query.trim() || item.objective.toLowerCase().includes(query.toLowerCase()) || item.summary.toLowerCase().includes(query.toLowerCase())).slice(0, 8).map(item => <button key={item.entry_id} type="button" onClick={() => setSelectedLearningId(item.entry_id)} style={{ textAlign: "left", border: selectedLearningId === item.entry_id ? "1px solid #4FC3F7" : "1px solid #333", borderRadius: 8, padding: 8, background: selectedLearningId === item.entry_id ? "#233240" : "#242424", color: "#ddd" }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>{item.objective}</div><Pill value={item.recommended_tool} /></div><div style={{ marginTop: 4, fontSize: 11, color: "#9aa0a6" }}>{item.summary}</div></button>)}
-                </div> : null}
+                        {selectedWorkspace ? (
+                            <div style={s.card}>
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                                    <div style={s.cardTitle}>{selectedWorkspace.objective}</div>
+                                    <Pill value={selectedWorkspace.decision.recommended_tool} />
+                                </div>
+                                <div style={{ marginTop: 6, ...s.small }}>Workspace {short(selectedWorkspace.workspace_id)} · {fmtDate(selectedWorkspace.updated_at)}</div>
+                                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                                    <div>
+                                        <div style={s.small}>Raciocínio</div>
+                                        <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5 }}>{selectedWorkspace.classification.rationale}</div>
+                                    </div>
+                                    <ProgressBar value={selectedWorkspace.classification.confidence} />
+                                    <div>
+                                        <div style={s.small}>Debate final</div>
+                                        <div style={{ marginTop: 4, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{selectedWorkspace.debate_summary}</div>
+                                    </div>
+                                    <div style={s.grid2}>
+                                        <div style={s.infoCard}>
+                                            <div style={s.small}>Vencedor</div>
+                                            <div style={{ marginTop: 4, fontWeight: 800, color: "#fff" }}>{selectedWorkspace.decision.winner_role}</div>
+                                        </div>
+                                        <div style={s.infoCard}>
+                                            <div style={s.small}>Confiança</div>
+                                            <div style={{ marginTop: 4, fontWeight: 800, color: "#fff" }}>{fmtPct(selectedWorkspace.classification.confidence)}</div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div style={s.small}>Grafo de raciocínio</div>
+                                        <div style={{ marginTop: 6 }}>{graphNodes.length ? <GraphPreview nodes={graphNodes} /> : <div style={s.small}>Sem grafo disponível.</div>}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : null}
 
-                {tab === "tools" ? <>
-                    <BridgePanel onBack={() => setTab("dashboard")} />
-                    <div style={card()}>
-                        <div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Monitor de providers</div>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{providers?.providers.length ? providers.providers.map(p => <Pill key={p} value={p} />) : <span style={{ color: "#9aa0a6" }}>Nenhum provider detectado</span>}</div>
-                        <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>{providers?.tools.length ? providers.tools.map(t => <Pill key={t} value={t} />) : null}</div>
-                    </div>
-                </> : null}
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Plano persistente</div>
+                            {latestPlan ? (
+                                <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                                    <div style={{ fontWeight: 800, color: "#fff" }}>{latestPlan.objective}</div>
+                                    <div style={s.small}>Plano {short(latestPlan.plan_id)} · Run {short(latestPlan.last_run_id)}</div>
+                                    <div style={s.small}>Progresso {fmtPct(latestPlan.progress)} · passo {latestPlan.current_index}/{latestPlan.subtasks.length}</div>
+                                    <ProgressBar value={latestPlan.progress} />
+                                    <div style={{ display: "grid", gap: 6 }}>
+                                        {latestPlan.subtasks.map((subtask, index) => (
+                                            <div key={`${latestPlan.plan_id}-${index}`} style={s.infoCard}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                                    <div style={{ fontWeight: 700 }}>{subtask.title}</div>
+                                                    <StatusPill value={subtask.status ?? "pending"} />
+                                                </div>
+                                                <div style={{ marginTop: 4, ...s.small }}>Progresso {fmtPct(subtask.progress ?? 0)}</div>
+                                                {subtask.note ? <div style={{ marginTop: 4, fontSize: 11, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{subtask.note}</div> : null}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : <div style={{ marginTop: 8, ...s.small }}>Nenhum plano persistente disponível.</div>}
+                        </div>
+                    </>
+                ) : null}
 
-                {tab === "control" ? <div style={{ display: "grid", gap: 8 }}>
-                    <div style={card()}><div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Centro de controle</div><div style={{ display: "grid", gap: 8 }}><div style={{ display: "grid", gridTemplateColumns: "1fr 110px 110px", gap: 8 }}><input value={objective} onChange={e => setObjective(e.target.value)} placeholder="Objetivo" style={input()} /><input type="number" min={1} max={5} value={maxIterations} onChange={e => setMaxIterations(Number(e.target.value) || 1)} style={input()} /><input type="number" min={1} max={20} value={maxFiles} onChange={e => setMaxFiles(Number(e.target.value) || 1)} style={input()} /></div><input value={testCommand} onChange={e => setTestCommand(e.target.value)} placeholder="Comando de teste" style={input()} /><div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}><button type="button" onClick={() => void enqueueObjective()} disabled={busy || !objective.trim()} style={btn()}>Enfileirar</button><button type="button" onClick={() => void startAutopilot()} disabled={autoRunning || !objective.trim()} style={btn()}>Autopilot</button><button type="button" onClick={() => void runVerifyProject()} disabled={verifyRunning} style={btn()}>{verifyRunning ? "Verificando..." : "Verify"}</button></div><div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}><button type="button" onClick={() => void runClassify()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Classificar</button><button type="button" onClick={() => void runDebate()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Debate</button><button type="button" onClick={() => void runSupervision()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Supervisionar</button></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}><button type="button" onClick={() => void runToolChoice()} disabled={busy || !(prompt.trim() || objective.trim())} style={btn()}>Ferramenta</button><button type="button" onClick={() => void cancelAutopilot()} disabled={!autoSession || !autoRunning} style={btn()}>Cancelar autopilot</button></div></div></div>
-                    <div style={card()}><div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Sessão direta</div>{autoError ? <div style={{ color: "#ff8a80", fontSize: 12, marginBottom: 8, whiteSpace: "pre-wrap" }}>{autoError}</div> : null}{autoSession ? <div style={{ display: "grid", gap: 6, fontSize: 12, color: "#ddd" }}><div>Run: {short(autoSession.run_id)} · Iteração {autoSession.current_iteration}/{autoSession.max_iterations}</div><div>Objetivo: {autoSession.objective}</div><div>Tempo: {fmtMs(autoSession.duration_ms)}</div>{autoSession.result ? <div>Resultado: {autoSession.result.success ? "sucesso" : "falhou"}</div> : null}{autoReport ? <div>Commit: {short(autoReport.git_commit)}</div> : null}</div> : <div style={{ color: "#9aa0a6", fontSize: 12 }}>Nenhuma sessão direta iniciada.</div>}</div>
-                    <div style={card()}><div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Verificação</div>{verifyResult ? <pre style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 11, color: "#ddd" }}>{JSON.stringify(verifyResult, null, 2)}</pre> : <div style={{ color: "#9aa0a6", fontSize: 12 }}>Sem resultados de verify ainda.</div>}</div>
-                    <div style={card()}><div style={{ color: "#ddd", fontWeight: 700, marginBottom: 8 }}>Fila e memória</div><div style={{ display: "grid", gap: 8 }}>{queue.slice(0, 4).map(item => <div key={item.queue_id} style={card()}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>{item.objective}</div><Pill value={item.status} /></div><div style={{ marginTop: 4, fontSize: 11, color: "#9aa0a6" }}>{item.test_command}</div></div>)}{memory.slice(0, 3).map(item => <div key={item.memory_id} style={card()}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ color: "#fff", fontWeight: 700, fontSize: 12 }}>{item.objective}</div><Pill value={item.outcome} /></div><div style={{ marginTop: 4, fontSize: 11, color: "#9aa0a6" }}>{item.summary}</div></div>)}</div></div>
-                </div> : null}
+                {section === "evolution" ? (
+                    <>
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Evolution Engine</div>
+                            <div style={{ ...s.small, marginTop: 4, lineHeight: 1.45 }}>
+                                Analisa o projeto, gera backlog, prioriza melhorias e dispara o próximo passo automaticamente.
+                            </div>
+                        </div>
 
-                {tab === "chat" ? <div style={{ display: "grid", gap: 8 }}>
-                    {messages.map(message => <div key={message.id} style={card()}><div style={{ fontSize: 11, color: message.role === "assistant" ? "#4FC3F7" : "#81C784", marginBottom: 4 }}>{message.role === "assistant" ? "ClawAI" : "Você"}</div><div style={{ color: "#ddd", whiteSpace: "pre-wrap", fontSize: 12 }}>{message.text}</div>{message.role === "assistant" && message.reply?.timings ? <div style={{ marginTop: 6, fontSize: 11, color: "#9aa0a6" }}>Provider: {message.reply.provider ?? "-"} · Modelo: {message.reply.model ?? "-"} · Total: {fmtMs(message.reply.timings.total_ms)}</div> : null}</div>)}
-                    <textarea rows={3} value={chatPrompt} onChange={e => setChatPrompt(e.target.value)} placeholder="Pergunte ao ClawAI" style={{ ...input(), resize: "none" }} />
-                    <button type="button" onClick={() => void sendChatMessage()} disabled={chatSending || !chatPrompt.trim()} style={btn()}>{chatSending ? "Enviando..." : "Enviar"}</button>
-                </div> : null}
+                        <div style={s.grid4}>
+                            <Metric label="Backlog" value={evolutionState?.backlog_size ?? 0} hint={`${evolutionState?.pending_items ?? 0} pendentes`} />
+                            <Metric label="Ciclos" value={evolutionState?.cycles_run ?? 0} hint={evolutionState?.running ? "rodando" : "parado"} />
+                            <Metric label="Fila ativa" value={evolutionState?.active_queue_size ?? 0} hint={`${evolutionState?.queued_items ?? 0} enfileirados`} />
+                            <Metric label="Saúde" value={topBacklog ? `${topBacklog.priority}` : "-"} hint={topBacklog ? topBacklog.title : "sem prioridade"} />
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.row}>
+                                <button type="button" onClick={() => void runEvolutionAction("start")} disabled={taskBusy || activeEvolution} style={s.button(true)}>
+                                    Start
+                                </button>
+                                <button type="button" onClick={() => void runEvolutionAction("stop")} disabled={taskBusy || !activeEvolution} style={s.button()}>
+                                    Stop
+                                </button>
+                                <button type="button" onClick={() => void runEvolutionAction("once")} disabled={taskBusy} style={s.button()}>
+                                    Run once
+                                </button>
+                                <button type="button" onClick={() => void runEvolutionAction("rebuild")} disabled={taskBusy} style={s.button()}>
+                                    Rebuild backlog
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Melhorias priorizadas</div>
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                                {evolutionBacklog?.items?.length ? evolutionBacklog.items.slice(0, 8).map(item => (
+                                    <div key={item.backlog_id} style={s.infoCard}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                                            <div style={{ fontWeight: 700, color: "#fff" }}>{item.title}</div>
+                                            <Pill value={`${item.priority}`} />
+                                        </div>
+                                        <div style={{ marginTop: 4, ...s.small }}>{item.category} · {fmtStatus(item.status)}</div>
+                                        <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45 }}>{item.description}</div>
+                                        {item.reasons.length ? <div style={{ marginTop: 6, ...s.small }}>Motivos: {item.reasons.join(" · ")}</div> : null}
+                                    </div>
+                                )) : <div style={s.small}>O backlog ainda não foi gerado.</div>}
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Ciclos recentes</div>
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                                {recentHistory.length ? recentHistory.map(record => (
+                                    <div key={record.cycle_id} style={s.infoCard}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                                            <div style={{ fontWeight: 700, color: "#fff" }}>Cycle {short(record.cycle_id)}</div>
+                                            <StatusPill value={record.status} />
+                                        </div>
+                                        <div style={{ marginTop: 4, ...s.small }}>{fmtDate(record.started_at)}</div>
+                                        <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45 }}>{record.analysis_summary}</div>
+                                    </div>
+                                )) : <div style={s.small}>Nenhum ciclo histórico ainda.</div>}
+                            </div>
+                        </div>
+                    </>
+                ) : null}
+
+                {section === "memory" ? (
+                    <>
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Memória e aprendizado</div>
+                            <div style={{ ...s.small, marginTop: 4, lineHeight: 1.45 }}>
+                                Aqui ficam os aprendizados do sistema e o histórico de decisões que podem ser reutilizados nos próximos ciclos.
+                            </div>
+                        </div>
+
+                        <div style={s.grid2}>
+                            <Metric label="Aprendizados" value={cognitionLearning.length} hint="workspaces cognitivos" />
+                            <Metric label="Memória de engenharia" value={memory.length} hint={autonomyState?.recent_memory?.length ? "reutilizável" : "vazia"} />
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Busca de aprendizado</div>
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                                {selectedLearning ? (
+                                    <div style={s.infoCard}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                            <div style={{ fontWeight: 700, color: "#fff" }}>{selectedLearning.objective}</div>
+                                            <Pill value={selectedLearning.category} />
+                                        </div>
+                                        <div style={{ marginTop: 4, ...s.small }}>{fmtDate(selectedLearning.timestamp)}</div>
+                                        <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{selectedLearning.summary}</div>
+                                        <div style={{ marginTop: 6, ...s.small }}>Ferramenta: {selectedLearning.recommended_tool} · Vencedor: {selectedLearning.winner_role} · Confiança: {fmtPct(selectedLearning.confidence)}</div>
+                                    </div>
+                                ) : null}
+                                <div style={{ display: "grid", gap: 8 }}>
+                                    {filteredLearning.slice(0, 8).map(item => (
+                                        <button key={item.entry_id} type="button" onClick={() => setSelectedLearningId(item.entry_id)} style={s.listItem(selectedLearningId === item.entry_id)}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                                <div style={{ fontWeight: 700, color: "#fff" }}>{item.objective}</div>
+                                                <Pill value={item.recommended_tool} />
+                                            </div>
+                                            <div style={{ marginTop: 4, ...s.small }}>{item.summary}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Memória recente do sistema</div>
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                                {memory.slice(0, 5).map(item => (
+                                    <div key={item.memory_id} style={s.infoCard}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                            <div style={{ fontWeight: 700, color: "#fff" }}>{item.objective}</div>
+                                            <Pill value={item.outcome} />
+                                        </div>
+                                        <div style={{ marginTop: 4, ...s.small }}>{fmtDate(item.timestamp)}</div>
+                                        <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.45 }}>{item.summary}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                ) : null}
+
+                {section === "control" ? (
+                    <>
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Centro de controle</div>
+                            <div style={{ ...s.small, marginTop: 4, lineHeight: 1.45 }}>
+                                Crie objetivos, rode o autopilot, valide com verify e deixe o ClawAI continuar o ciclo.
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={{ display: "grid", gap: 8 }}>
+                                <textarea
+                                    value={objective}
+                                    onChange={e => setObjective(e.target.value)}
+                                    placeholder="Objetivo principal"
+                                    style={s.textarea}
+                                />
+                                <div style={s.grid3}>
+                                    <input value={testCommand} onChange={e => setTestCommand(e.target.value)} placeholder="Comando de teste" style={s.input} />
+                                    <input type="number" min={1} max={5} value={maxIterations} onChange={e => setMaxIterations(Number(e.target.value) || 1)} style={s.input} />
+                                    <input type="number" min={1} max={20} value={maxFiles} onChange={e => setMaxFiles(Number(e.target.value) || 1)} style={s.input} />
+                                </div>
+                                <div style={s.grid3}>
+                                    <button type="button" onClick={() => void queueObjective()} disabled={taskBusy || !objective.trim()} style={s.button(true)}>
+                                        Enfileirar
+                                    </button>
+                                    <button type="button" onClick={() => void startAutopilot()} disabled={taskBusy || !objective.trim()} style={s.button(true)}>
+                                        Autopilot
+                                    </button>
+                                    <button type="button" onClick={() => void runVerifyProject()} disabled={taskBusy} style={s.button()}>
+                                        Verify
+                                    </button>
+                                </div>
+                                <div style={s.grid2}>
+                                    <button type="button" onClick={() => void runQuickClassify()} disabled={taskBusy || !objective.trim()} style={s.button()}>
+                                        Classificar
+                                    </button>
+                                    <button type="button" onClick={() => void runQuickSupervision()} disabled={taskBusy || !objective.trim()} style={s.button()}>
+                                        Supervisionar
+                                    </button>
+                                </div>
+                                <details style={s.infoCard}>
+                                    <summary style={{ cursor: "pointer", fontWeight: 700, color: "#fff" }}>Ações avançadas</summary>
+                                    <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                                        <div style={s.grid2}>
+                                            <button type="button" onClick={() => void runQuickDebate()} disabled={taskBusy || !objective.trim()} style={s.button()}>
+                                                Debate
+                                            </button>
+                                            <button type="button" onClick={() => void runQuickToolChoice()} disabled={taskBusy || !objective.trim()} style={s.button()}>
+                                                Ferramenta
+                                            </button>
+                                        </div>
+                                    </div>
+                                </details>
+                                {controlError ? <div style={{ ...s.mutedNote, borderLeftColor: "#f59e0b", background: "#2d2111", color: "#fee2b3" }}>{controlError}</div> : null}
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Sessão direta</div>
+                            {autoSession ? (
+                                <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
+                                    <div>Run: {short(autoSession.run_id)} · Iteração {autoSession.current_iteration}/{autoSession.max_iterations}</div>
+                                    <div>Objetivo: {autoSession.objective}</div>
+                                    <div>Tempo: {fmtMs(autoSession.duration_ms)}</div>
+                                    {autoSession.result ? <div>Resultado: {autoSession.result.success ? "sucesso" : "falhou"}</div> : null}
+                                    {autoReport ? <div>Commit: {short(autoReport.git_commit)}</div> : null}
+                                    <div style={s.row}>
+                                        <button type="button" onClick={() => void cancelAutopilot()} disabled={taskBusy} style={s.button(false, true)}>
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : <div style={{ marginTop: 8, ...s.small }}>Nenhuma sessão direta iniciada.</div>}
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Verificação</div>
+                            {verifyResult ? (
+                                <pre style={{ marginTop: 10, marginBottom: 0, whiteSpace: "pre-wrap", fontSize: 11, lineHeight: 1.5, color: "#ddd" }}>
+                                    {JSON.stringify(verifyResult, null, 2)}
+                                </pre>
+                            ) : <div style={{ marginTop: 8, ...s.small }}>Sem resultados de verify ainda.</div>}
+                        </div>
+                    </>
+                ) : null}
+
+                {section === "integrations" ? (
+                    <>
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Integrações e providers</div>
+                            <div style={{ ...s.small, marginTop: 4, lineHeight: 1.45 }}>
+                                Composio e o bridge entre modelos alimentam a camada de decisão do ClawAI. Aqui fica visível o que está disponível para o motor cognitivo.
+                            </div>
+                        </div>
+
+                        <div style={s.grid2}>
+                            <Metric label="Providers" value={bridgeProviders?.providers.length ?? 0} hint="modelos disponíveis" />
+                            <Metric label="Ferramentas" value={bridgeProviders?.tools.length ?? 0} hint="ações e integrações" />
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Providers</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                                {bridgeProviders?.providers.length ? bridgeProviders.providers.map(provider => <Pill key={provider} value={provider} />) : <div style={s.small}>Nenhum provider detectado.</div>}
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Ferramentas</div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+                                {bridgeProviders?.tools.length ? bridgeProviders.tools.map(tool => <Pill key={tool} value={tool} />) : <div style={s.small}>Nenhuma ferramenta detectada.</div>}
+                            </div>
+                        </div>
+
+                        <div style={s.card}>
+                            <div style={s.cardTitle}>Workspaces cognitivos</div>
+                            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                                {recentWorkspaces.length ? recentWorkspaces.map(ws => (
+                                    <button key={ws.workspace_id} type="button" onClick={() => setSection("workspace")} style={s.listItem(selectedWorkspaceId === ws.workspace_id)}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                            <div style={{ fontWeight: 700, color: "#fff" }}>{ws.objective}</div>
+                                            <Pill value={ws.classification.category} />
+                                        </div>
+                                        <div style={{ marginTop: 4, ...s.small }}>Atualizado {fmtDate(ws.updated_at)}</div>
+                                    </button>
+                                )) : <div style={s.small}>Ainda sem workspaces.</div>}
+                            </div>
+                        </div>
+                    </>
+                ) : null}
             </div>
-        </div>
+        </aside>
     );
 }
