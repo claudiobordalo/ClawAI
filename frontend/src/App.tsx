@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MonacoEditor from "@monaco-editor/react";
-import { FaBolt, FaChevronDown, FaCode, FaFolderOpen, FaLayerGroup, FaMemory, FaProjectDiagram, FaRobot, FaSearch, FaStream, FaTasks, FaTimes, FaTrashAlt } from "react-icons/fa";
+import { FaBolt, FaCode, FaFolderOpen, FaMemory, FaProjectDiagram, FaSearch, FaStream, FaTasks, FaTimes, FaTrashAlt } from "react-icons/fa";
 
 import Explorer from "./Explorer";
 import OperationsHub from "./OperationsHub";
@@ -12,7 +12,6 @@ import {
     openWorkspace,
     saveFile,
     selectWorkspace,
-    type WorkspaceInfo,
     type WorkspaceSummary,
 } from "./api";
 import type { TreeNode } from "./tree";
@@ -40,7 +39,6 @@ const INITIAL_LEFT_WIDTH = 320;
 const INITIAL_RIGHT_WIDTH = 560;
 const MIN_LEFT_WIDTH = 260;
 const MIN_RIGHT_WIDTH = 360;
-const MIN_EDITOR_WIDTH = 420;
 
 function clamp(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
@@ -98,9 +96,8 @@ export default function App() {
 
             if ((e.ctrlKey || e.metaKey) && key === "w") {
                 e.preventDefault();
-                const current = currentTab;
-                if (current) {
-                    void closeTab(current.path);
+                if (currentTab) {
+                    void closeTab(currentTab.path);
                 }
             }
         }
@@ -151,23 +148,6 @@ export default function App() {
     const activePath = activeWorkspaceEntry?.active ?? "";
     const currentTab = activeTabs.find(tab => tab.path === activePath) ?? activeTabs[0] ?? null;
 
-    const commands = useMemo<Command[]>(() => [
-        { id: "open-workspace", label: "Open Folder", hint: "Escolher outro projeto", action: promptOpenWorkspace },
-        { id: "switch-explorer", label: "Explorer", hint: "Painel de arquivos", action: () => setLeftSection("explorer") },
-        { id: "switch-projects", label: "Projects", hint: "Gerenciar workspaces", action: () => setLeftSection("projects") },
-        { id: "toggle-right", label: rightVisible ? "Hide Right Panel" : "Show Right Panel", hint: "Chat / Evolution / Memory", action: () => setRightVisible(prev => !prev) },
-        { id: "refresh", label: "Refresh Workspace", hint: "Recarregar árvore e projetos", action: refreshAll },
-        { id: "save", label: "Save File", hint: "Salvar arquivo ativo", action: saveCurrent },
-    ], [rightVisible, currentTab, activeWorkspaceId, tree, workspaceSummary]);
-
-    const filteredCommands = commands.filter(command => {
-        const q = paletteQuery.trim().toLowerCase();
-        if (!q) {
-            return true;
-        }
-        return `${command.label} ${command.hint}`.toLowerCase().includes(q);
-    });
-
     async function bootstrap() {
         setBusy(true);
         try {
@@ -207,13 +187,10 @@ export default function App() {
             const nextTree = await loadTree("", workspaceId);
             setTree(nextTree);
             setWorkspaceError("");
-            const activeSummary = summary ?? workspaceSummary;
-            if (activeSummary) {
-                setWorkspaceSummary(activeSummary);
+            if (summary) {
+                setWorkspaceSummary(summary);
             }
-            if (workspaceId && !workspaceTabs[workspaceId]) {
-                setWorkspaceTabs(prev => ({ ...prev, [workspaceId]: { tabs: [], active: "" } }));
-            }
+            setWorkspaceTabs(prev => prev[workspaceId] ? prev : { ...prev, [workspaceId]: { tabs: [], active: "" } });
         } catch (error) {
             console.error("Falha ao carregar a árvore do projeto.", error);
             setTree([]);
@@ -373,13 +350,28 @@ export default function App() {
         }
     }
 
+    const commands: Command[] = [
+        { id: "open-workspace", label: "Open Folder", hint: "Escolher outro projeto", action: promptOpenWorkspace },
+        { id: "switch-explorer", label: "Explorer", hint: "Painel de arquivos", action: () => setLeftSection("explorer") },
+        { id: "switch-projects", label: "Projects", hint: "Gerenciar workspaces", action: () => setLeftSection("projects") },
+        { id: "toggle-right", label: rightVisible ? "Hide Right Panel" : "Show Right Panel", hint: "Chat / Evolution / Memory", action: () => setRightVisible(prev => !prev) },
+        { id: "refresh", label: "Refresh Workspace", hint: "Recarregar árvore e projetos", action: refreshAll },
+        { id: "save", label: "Save File", hint: "Salvar arquivo ativo", action: saveCurrent },
+    ];
+
+    const filteredCommands = commands.filter(command => {
+        const q = paletteQuery.trim().toLowerCase();
+        if (!q) {
+            return true;
+        }
+        return `${command.label} ${command.hint}`.toLowerCase().includes(q);
+    });
+
     async function runCommand(command: Command) {
         setPaletteOpen(false);
         setPaletteQuery("");
         await Promise.resolve(command.action());
     }
-
-    const mainWidth = `calc(100vw - ${rightVisible ? leftWidth + rightWidth + 60 : leftWidth + 54}px)`;
 
     return (
         <div style={{ height: "100vh", background: "#1e1e1e", color: "#ddd", overflow: "hidden" }}>
@@ -453,12 +445,8 @@ export default function App() {
 
                 <div style={{ minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", background: "#1e1e1e" }}>
                     <div style={{ height: 36, borderBottom: "1px solid #333", background: "#252526", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 10px", gap: 10 }}>
-                        <div style={{ fontSize: 12, color: "#8b949e" }}>
-                            {leftSection === "explorer" ? "Explorer" : "Projects"}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#8b949e" }}>
-                            {busy ? "Updating…" : `Updated ${lastRefresh ? new Date(lastRefresh).toLocaleTimeString() : "just now"}`}
-                        </div>
+                        <div style={{ fontSize: 12, color: "#8b949e" }}>{leftSection === "explorer" ? "Explorer" : "Projects"}</div>
+                        <div style={{ fontSize: 12, color: "#8b949e" }}>{busy ? "Updating…" : `Updated ${lastRefresh ? new Date(lastRefresh).toLocaleTimeString() : "just now"}`}</div>
                     </div>
 
                     <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
@@ -470,7 +458,7 @@ export default function App() {
                                 currentId={activeWorkspaceId}
                                 onSelect={id => void changeWorkspace(id)}
                                 onOpenFolder={() => void promptOpenWorkspace()}
-                                onClose={id => workspaceSummary ? void closeWorkspace(id) : undefined}
+                                onClose={id => void closeWorkspace(id)}
                             />
                         )}
                     </div>
@@ -515,9 +503,7 @@ export default function App() {
                                     ×
                                 </span>
                             </div>
-                        )) : (
-                            <div style={{ color: "#8b949e", padding: "0 12px", fontSize: 12 }}>Open a file from the explorer</div>
-                        )}
+                        )) : <div style={{ color: "#8b949e", padding: "0 12px", fontSize: 12 }}>Open a file from the explorer</div>}
                     </div>
 
                     <div style={{ flex: 1, minHeight: 0 }}>
