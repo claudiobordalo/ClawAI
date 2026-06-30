@@ -458,7 +458,7 @@ export default function App() {
                                 currentId={activeWorkspaceId}
                                 onSelect={id => void changeWorkspace(id)}
                                 onOpenFolder={() => void promptOpenWorkspace()}
-                                onClose={id => void closeWorkspace(id)}
+                                onClose={() => void refreshAll()}
                             />
                         )}
                     </div>
@@ -613,7 +613,7 @@ function ResizeHandle({ onMouseDown }: { onMouseDown: () => void }) {
     return <div onMouseDown={onMouseDown} style={{ width: 6, cursor: "col-resize", background: "linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent)" }} />;
 }
 
-function ProjectPanel({ summary, currentId, onSelect, onOpenFolder, onClose }: { summary: WorkspaceSummary | null; currentId: string; onSelect: (id: string) => void; onOpenFolder: () => void; onClose: (id: string) => void; }) {
+function ProjectPanel({ summary, currentId, onSelect, onOpenFolder, onClose }: { summary: WorkspaceSummary | null; currentId: string; onSelect: (id: string) => void; onOpenFolder: () => void; onClose: () => void; }) {
     const workspaces = summary?.workspaces ?? [];
     return (
         <div style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
@@ -651,7 +651,7 @@ function ProjectPanel({ summary, currentId, onSelect, onOpenFolder, onClose }: {
                                     type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        onClose(ws.workspace_id);
+                                        onClose();
                                     }}
                                     style={{ background: "transparent", border: "none", color: "#999", cursor: "pointer" }}
                                 >
