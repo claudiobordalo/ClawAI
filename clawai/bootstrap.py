@@ -37,7 +37,7 @@ def build_container() -> ServiceContainer:
 
     ai.register(
         OllamaProvider(
-            model="qwen2.5-coder:14b",
+            model="gemma4:latest",
         )
     )
 

@@ -114,9 +114,9 @@ function GraphPreview({ nodes, rootId = "root", depth = 0 }: { nodes: any[]; roo
     </div>;
 }
 
-function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
-    return <button type="button" onClick={onClick} style={styles().button()}>{label}</button>;
-}
+// function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
+//     return <button type="button" onClick={onClick} style={styles().button()}>{label}</button>;
+// }
 
 export default function OperationsHub() {
     const st = styles();
@@ -174,10 +174,12 @@ export default function OperationsHub() {
 
     useEffect(() => { void refreshAll(); }, []);
     useEffect(() => {
+        if (!autoSession?.run_id) return;
+
         const timer = window.setInterval(() => {
-            void refreshAll();
-            if (autoSession?.run_id) void refreshAutoSession(autoSession.run_id);
+            void refreshAutoSession(autoSession.run_id);
         }, 3000);
+
         return () => window.clearInterval(timer);
     }, [autoSession?.run_id]);
 
@@ -187,10 +189,8 @@ export default function OperationsHub() {
 
     const selectedWorkspace = useMemo(() => cognitionWorkspaces.find(ws => ws.workspace_id === selectedWorkspaceId) ?? cognitionWorkspaces[0] ?? null, [cognitionWorkspaces, selectedWorkspaceId]);
     const selectedLearning = useMemo(() => cognitionLearning.find(item => item.entry_id === selectedLearningId) ?? cognitionLearning[0] ?? null, [cognitionLearning, selectedLearningId]);
-    const queue = autonomyState?.queue ?? [];
     const plans = autonomyState?.plans ?? [];
     const memory = autonomyState?.recent_memory ?? [];
-    const activeQueue = queue.filter(item => item.status === "queued" || item.status === "running");
     const latestPlan = plans[0] ?? null;
     const topBacklog = evolutionBacklog?.top_item ?? evolutionBacklog?.items?.[0] ?? null;
     const activeEvolution = evolutionState?.enabled ?? false;

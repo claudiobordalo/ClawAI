@@ -25,8 +25,9 @@ class Settings:
 
     ollama_host: str = "http://localhost:11434"
 
-    default_model: str = "qwen2.5-coder:14b"
+    default_model: str = "gemma4:latest"
     planner_model: str = "qwen3:8b"
+    reasoning_model: str = "deepseek-r1:8b"
     coder_model: str = "qwen2.5-coder:14b"
     reviewer_model: str = "deepseek-r1:8b"
     vision_model: str = "qwen2.5vl:7b"

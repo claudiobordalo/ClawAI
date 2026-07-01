@@ -64,17 +64,6 @@ class ChatResponse:
             ),
         )
 
-class ChatService:
-    def __init__(self) -> None:
-        self.router = AIRouter()
-        self.provider_name = getattr(self.router, "_provider", "ollama")
-        self.pipeline = CognitionPipeline(router=self.router, provider_name=self.provider_name)
-
-    def ask(self, prompt: str, file: str | None = None) -> ChatResponse:
-        return ChatResponse.from_pipeline(self.pipeline.execute(prompt, file))
-
-    def ask_stream(self, prompt: str, file: str | None = None) -> Iterator[dict[str, object]]:
-        yield from self.pipeline.stream(prompt, file)
 
 class CognitionPipeline:
     def __init__(self, router: AIRouter, provider_name: str) -> None:
@@ -85,7 +74,41 @@ class CognitionPipeline:
         started = time.perf_counter()
         prepared = self._prepare_prompt(prompt, file)
         search_result = search.build_prompt(prepared)
-
+        prompt_lower = prompt.lower().strip()
+        simple_chat = (
+            len(prompt) < 80
+            and not any(
+                word in prompt_lower
+                for word in (
+                    "implemente",
+                    "corrija",
+                    "refatore",
+                    "analise",
+                    "backlog",
+                    "planeje",
+                    "arquitetura",
+                    "codigo",
+                    "arquivo",
+                    "python",
+                    "tsx",
+                    "react",
+                )
+            )
+        )
+        if simple_chat:
+            answer = self.router.ask(
+                prompt=prompt,
+                role=ModelRole.DEFAULT,
+                system_prompt=BASE_SYSTEM_PROMPT,
+            )
+            return ChatResponse(
+                answer=answer,
+                used_memory=False,
+                used_knowledge=False,
+                requires_web=False,
+                provider=self.provider_name,
+                model=self.router.model_for(ModelRole.DEFAULT),
+            )
         supervisor = self._supervise(prepared, file, search_result)
         self._plan(prepared, supervisor, search_result)
         coder, reviewer = self._debate(prepared, supervisor, search_result)
@@ -98,7 +121,7 @@ class CognitionPipeline:
             used_knowledge=search_result.used_knowledge,
             requires_web=search_result.requires_web,
             provider=self.provider_name,
-            model=self.router.model_for(ModelRole.REVIEWER),
+            model=self.router.model_for(ModelRole.DEFAULT),
             memory_saved=memory_saved,
             timings=ChatTimings(
                 search=search_result.timings,
@@ -123,7 +146,7 @@ class CognitionPipeline:
 
     def _supervise(self, prompt: str, file: str | None, search_result: SearchResult) -> dict[str, object]:
         text = f"{prompt} {Path(file).name if file else ''}".lower()
-        if Path(file).suffix.lower() in VISION_SUFFIXES:
+        if file and Path(file).suffix.lower() in VISION_SUFFIXES:
             return {"intent": "vision", "primary_role": ModelRole.VISION, "parallel": False, "rationale": "arquivo visual"}
         if any(h in text for h in REVIEWER_HINTS):
             return {"intent": "review", "primary_role": ModelRole.REVIEWER, "parallel": True, "rationale": "pedido de revisão"}
@@ -131,7 +154,7 @@ class CognitionPipeline:
             return {"intent": "plan", "primary_role": ModelRole.PLANNER, "parallel": True, "rationale": "pedido de planejamento"}
         if any(h in text for h in CODER_HINTS):
             return {"intent": "code", "primary_role": ModelRole.CODER, "parallel": True, "rationale": "pedido de implementação"}
-        raw = self._ask(ModelRole.DEFAULT, SUPERVISOR_PROMPT, f"Solicitação:\n{prompt}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}")
+        raw = self._ask(ModelRole.PLANNER, SUPERVISOR_PROMPT, f"Solicitação:\n{prompt}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}")
         data = _extract_json(raw)
         if isinstance(data, dict):
             return {
@@ -143,28 +166,62 @@ class CognitionPipeline:
         return {"intent": "general", "primary_role": ModelRole.DEFAULT, "parallel": True, "rationale": "fluxo geral"}
 
     def _plan(self, prompt: str, supervisor: dict[str, object], search_result: SearchResult) -> str:
-        return self._ask(
+        result = self._ask(
             ModelRole.PLANNER,
             PLANNER_PROMPT,
             f"Solicitação:\n{prompt}\n\nSupervisor:\n{supervisor}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}",
         )
+        print("\n===== PLANNER =====")
+        print(result)
+        print("===================\n")
+        return result
 
     def _debate(self, prompt: str, supervisor: dict[str, object], search_result: SearchResult) -> tuple[str, str]:
         ctx = f"Solicitação:\n{prompt}\n\nSupervisor:\n{supervisor}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}"
         with ThreadPoolExecutor(max_workers=2) as ex:
-            coder = ex.submit(self._ask, ModelRole.CODER, CODER_PROMPT, ctx).result()
-            reviewer = ex.submit(self._ask, ModelRole.REVIEWER, REVIEWER_PROMPT, ctx).result()
+            future_coder = ex.submit(
+                self._ask,
+                ModelRole.CODER,
+                CODER_PROMPT,
+                ctx,
+            )
+            future_reviewer = ex.submit(
+                self._ask,
+                ModelRole.REVIEWER,
+                REVIEWER_PROMPT,
+                ctx,
+            )
+            coder = future_coder.result()
+            reviewer = future_reviewer.result()
+            print("\n===== CODER =====")
+            print(coder)
+            print("\n===== REVIEWER =====")
+            print(reviewer)
         return coder, reviewer
 
     def _synthesize(self, prompt: str, supervisor: dict[str, object], coder: str, reviewer: str, search_result: SearchResult) -> str:
         ctx = f"Solicitação:\n{prompt}\n\nSupervisor:\n{supervisor}\n\nCoder:\n{coder}\n\nReviewer:\n{reviewer}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}"
-        return self._ask(ModelRole.REVIEWER, SYNTH_PROMPT, ctx)
+        result = self._ask(
+        ModelRole.DEFAULT,
+        SYNTH_PROMPT,
+        ctx,
+        )
+        print("\n===== SYNTHESIS =====")
+        print(result)
+        print("=====================\n")
+        return result
 
-    def _ask(self, role: ModelRole, system_prompt: str, prompt: str) -> str:
-        try:
-            return self.router.ask(prompt, role=role, system_prompt=system_prompt)
-        except Exception as exc:
-            return f"Falha ao consultar {role.value}: {exc}"
+    def _ask(
+        self,
+        role: ModelRole,
+        system_prompt: str,
+        prompt: str,
+    ) -> str:
+        return self.router.ask(
+            prompt=prompt,
+            role=role,
+            system_prompt=system_prompt,
+        )
 
     def _finalize_answer(self, answer: str) -> tuple[str, bool]:
         if "<MEMORY>" not in answer or "</MEMORY>" not in answer:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import traceback
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
@@ -137,9 +138,24 @@ def close_workspace(workspace_id: str):
 @app.post("/api/chat")
 def chat_text(request: ChatRequest):
     try:
-        return _payload(chat.ask(prompt=request.prompt))
+        result = chat.ask(prompt=request.prompt)
+
+        print("\n========== CHAT RESULT ==========")
+        print(result)
+        print("=================================\n")
+
+        return _payload(result)
+
     except Exception as exc:
-        return _chat_fallback_message(exc)
+        print("\n========== CHAT ERROR ==========")
+        traceback.print_exc()
+        print("================================\n")
+
+        return {
+            "answer": "Erro interno.",
+            "error": str(exc),
+            "exception": exc.__class__.__name__,
+        }
 
 
 @app.post("/api/auto/implement")
