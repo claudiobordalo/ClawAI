@@ -142,9 +142,9 @@ export default function OperationsHub() {
     const [autoSession, setAutoSession] = useState<AutoImplementSession | null>(null);
     const [autoReport, setAutoReport] = useState<AutoImplementReport | null>(null);
     const [verifyResult, setVerifyResult] = useState<VerifyResponse | null>(null);
-    const [lastClassification, setLastClassification] = useState<any | null>(null);
-    const [lastDecision, setLastDecision] = useState<any | null>(null);
-    const [lastDebate, setLastDebate] = useState<any | null>(null);
+    // const [lastClassification, setLastClassification] = useState<any | null>(null);
+    // const [lastDecision, setLastDecision] = useState<any | null>(null);
+    // const [lastDebate, setLastDebate] = useState<any | null>(null);
     const nextId = useRef(2);
     const pollingLock = useRef(false);
     const chatScrollRef = useRef<HTMLDivElement | null>(null);
@@ -265,7 +265,9 @@ export default function OperationsHub() {
     async function runQuickClassify() {
         const text = objective.trim(); if (!text) return;
         setTaskBusy(true);
-        try { setLastClassification(await classifyCognition(text)); setSection("control"); }
+        try { await classifyCognition(text);
+            await refreshAll();
+            setSection("workspace"); }
         catch (error) { setControlError(apiErrorMessage(error, "Falha ao classificar o objetivo.")); }
         finally { setTaskBusy(false); }
     }
@@ -273,7 +275,12 @@ export default function OperationsHub() {
     async function runQuickDebate() {
         const text = objective.trim(); if (!text) return;
         setTaskBusy(true);
-        try { const result = await consultBridge({ prompt: text, system_prompt: text }); setLastDecision(result.decision); setLastDebate(result); setSection("workspace"); }
+        try { await consultBridge({
+                prompt: text,
+                system_prompt: text,
+            });
+            await refreshAll();
+            setSection("workspace"); }
         catch (error) { setControlError(apiErrorMessage(error, "Falha ao executar o debate.")); }
         finally { setTaskBusy(false); }
     }
@@ -283,9 +290,9 @@ export default function OperationsHub() {
         setTaskBusy(true);
         try {
             const result = await superviseCognition({ prompt: text, objective: text });
-            setLastClassification(result.classification);
-            setLastDecision(result.decision);
-            setLastDebate(result.debate);
+            // setLastClassification(result.classification);
+            // setLastDecision(result.decision);
+            // setLastDebate(result.debate);
             setSelectedWorkspaceId(result.workspace.workspace_id);
             setSelectedLearningId(result.learning_entry.entry_id);
             setSection("workspace");
@@ -297,7 +304,12 @@ export default function OperationsHub() {
     async function runQuickToolChoice() {
         const text = objective.trim(); if (!text) return;
         setTaskBusy(true);
-        try { setLastDecision(await recommendBridgeTool({ prompt: text, system_prompt: text })); setSection("integrations"); }
+        try { await recommendBridgeTool({
+                prompt: text,
+                system_prompt: text,
+            });
+            await refreshAll();
+            setSection("integrations");}
         catch (error) { setControlError(apiErrorMessage(error, "Falha ao escolher ferramenta.")); }
         finally { setTaskBusy(false); }
     }
@@ -378,7 +390,7 @@ export default function OperationsHub() {
                         <div style={st.grid2}><Metric label="Confiança" value={fmtPct(selectedWorkspace?.classification.confidence ?? 0)} hint={selectedWorkspace?.classification.rationale ?? "Sem classificação"} /><Metric label="Debate" value={selectedWorkspace?.decision.winner_role ?? "-"} hint={selectedWorkspace?.decision.recommended_tool ?? "sem decisão"} /></div>
                         <div style={st.card}><div style={{ fontSize: 12, color: "#9ca3af" }}>Debate final</div><div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{selectedWorkspace?.debate_summary ?? "Sem debate ainda."}</div><div style={{ marginTop: 10 }}><ProgressBar value={selectedWorkspace?.classification.confidence ?? 0} /></div></div>
                         <div style={st.card}><div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>Grafo de raciocínio</div><div style={{ marginTop: 10 }}>{graphNodes.length ? <GraphPreview nodes={graphNodes} /> : <div style={st.small}>Sem grafo disponível.</div>}</div></div>
-                        <div style={st.card}><div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>Última análise</div><div style={{ marginTop: 10, display: "grid", gap: 8 }}><div><span style={st.small}>Classificação:</span><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{lastClassification ? JSON.stringify(lastClassification, null, 2) : "—"}</pre></div><div><span style={st.small}>Decisão:</span><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{lastDecision ? JSON.stringify(lastDecision, null, 2) : "—"}</pre></div><div><span style={st.small}>Debate:</span><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{lastDebate ? JSON.stringify(lastDebate, null, 2) : "—"}</pre></div></div></div>
+                        {/* <div style={st.card}><div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>Última análise</div><div style={{ marginTop: 10, display: "grid", gap: 8 }}><div><span style={st.small}>Classificação:</span><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{lastClassification ? JSON.stringify(lastClassification, null, 2) : "—"}</pre></div><div><span style={st.small}>Decisão:</span><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{lastDecision ? JSON.stringify(lastDecision, null, 2) : "—"}</pre></div><div><span style={st.small}>Debate:</span><pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{lastDebate ? JSON.stringify(lastDebate, null, 2) : "—"}</pre></div></div></div> */}
                         <div style={st.card}><div style={{ fontSize: 13, fontWeight: 800, color: "#fff" }}>Plano persistente</div>{latestPlan ? <div style={{ marginTop: 10, display: "grid", gap: 8 }}><div style={{ fontWeight: 800, color: "#fff" }}>{latestPlan.objective}</div><div style={st.small}>Plano {short(latestPlan.plan_id)} · Run {short(latestPlan.last_run_id)}</div><div style={st.small}>Progresso {fmtPct(latestPlan.progress)} · passo {latestPlan.current_index}/{latestPlan.subtasks.length}</div><ProgressBar value={latestPlan.progress} /><div style={{ display: "grid", gap: 6 }}>{latestPlan.subtasks.map((subtask, index) => <div key={`${latestPlan.plan_id}-${index}`} style={st.card}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><div style={{ fontWeight: 700, color: "#fff" }}>{subtask.title}</div><StatusPill value={subtask.status ?? "pending"} /></div><div style={{ marginTop: 4, ...st.small }}>Progresso {fmtPct(subtask.progress ?? 0)}</div>{subtask.note ? <div style={{ marginTop: 4, fontSize: 11, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{subtask.note}</div> : null}</div>)}</div></div> : <div style={{ marginTop: 8, ...st.small }}>Nenhum plano persistente disponível.</div>}</div>
                     </>
                 ) : null}
