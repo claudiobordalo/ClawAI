@@ -1,26 +1,32 @@
 ﻿from __future__ import annotations
 
 import os
+from typing import Any
 
 from openai import OpenAI
 
 from clawai.providers.base import BaseProvider
 from clawai.providers.base import ProviderResponse
+from clawai.providers.factory.factory import ProviderFactory
 
 
 class OpenAIProvider(BaseProvider):
-
     def __init__(
         self,
         model: str = "gpt-5",
-        **kwargs,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        **kwargs: Any,
     ) -> None:
-
-
         self._model = model
 
+        key = api_key or os.getenv("OPENAI_API_KEY")
+        if not key:
+            raise ValueError("OPENAI_API_KEY não configurada.")
+
         self._client = OpenAI(
-            api_key=os.environ["OPENAI_API_KEY"],
+            api_key=key,
+            base_url=base_url or os.getenv("OPENAI_BASE_URL") or None,
         )
 
     def generate(
@@ -28,8 +34,7 @@ class OpenAIProvider(BaseProvider):
         prompt: str,
         system_prompt: str | None = None,
     ) -> ProviderResponse:
-
-        messages = []
+        messages: list[dict[str, str]] = []
 
         if system_prompt:
             messages.append(
@@ -54,10 +59,14 @@ class OpenAIProvider(BaseProvider):
         usage = getattr(response, "usage", None)
 
         return ProviderResponse(
-            content=response.output_text,
+            content=getattr(response, "output_text", "") or "",
             model=self._model,
             provider="openai",
-            prompt_tokens=getattr(usage, "input_tokens", 0),
-            completion_tokens=getattr(usage, "output_tokens", 0),
-            total_tokens=getattr(usage, "total_tokens", 0),
+            prompt_tokens=int(getattr(usage, "input_tokens", 0) or 0),
+            completion_tokens=int(getattr(usage, "output_tokens", 0) or 0),
+            total_tokens=int(getattr(usage, "total_tokens", 0) or 0),
+            elapsed_ms=0.0,
         )
+
+
+ProviderFactory.register_provider("openai", OpenAIProvider)

@@ -93,7 +93,9 @@ class OllamaProvider:
             ],
 
         )
-
+        print("\n===== RAW OLLAMA RESPONSE =====")
+        print(repr(response))
+        print("===============================\n")
         return response["message"]["content"]
 
 

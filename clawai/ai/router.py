@@ -51,11 +51,14 @@ class ModelRouter:
         self,
         role: ModelRole | str,
     ) -> BaseProvider:
-        return self._provider_factory.create(
+        provider = self._provider_factory.create(
             provider=self._provider,
             settings=self._settings,
             model=self.model_for(role),
         )
+        print("PROVIDER CLASS:", provider.__class__)
+        print("PROVIDER MODULE:", provider.__class__.__module__)
+        return provider
 
     def ask(
         self,
@@ -63,11 +66,20 @@ class ModelRouter:
         role: ModelRole | str = ModelRole.DEFAULT,
         system_prompt: str | None = None,
     ) -> str:
+
         provider = self.provider_for(role)
+        print("\n==============================")
+        print("ROLE:", role)
+        print("MODEL:", self.model_for(role))
+        print("PROVIDER:", type(provider).__name__)
         response = provider.generate(
             prompt=prompt,
             system_prompt=system_prompt,
         )
+        print("RESPONSE TYPE:", type(response))
+        print("RESPONSE:", repr(response))
+        print("==============================\n")
+
         return response.content
 
     def stream(
