@@ -29,11 +29,17 @@ VISION_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tiff", ".
 
 @dataclass(slots=True, frozen=True)
 class ChatTimings:
+    # name: str
+    # ms: float
     search: SearchTimings = field(default_factory=SearchTimings)
     model_ms: float = 0.0
     postprocess_ms: float = 0.0
     total_ms: float = 0.0
 
+@dataclass(slots=True, frozen=True)
+class ChatStageTiming:
+    name: str
+    ms: float
 
 @dataclass(slots=True, frozen=True)
 class ChatResponse:
@@ -45,6 +51,7 @@ class ChatResponse:
     model: str
     memory_saved: bool = False
     timings: ChatTimings = field(default_factory=ChatTimings)
+    stage_timings: list[ChatStageTiming] = field(default_factory=list)
 
     @classmethod
     def from_pipeline(cls, result: PipelineResult) -> "ChatResponse":
@@ -72,35 +79,49 @@ class CognitionPipeline:
 
     def execute(self, prompt: str, file: str | None = None) -> ChatResponse:
         started = time.perf_counter()
+        stages: list[ChatStageTiming] = []
+
+        def mark(name: str, t0: float) -> None:
+            stages.append(ChatStageTiming(name=name, ms=(time.perf_counter() - t0) * 1000))
+
+        t0 = time.perf_counter()
         prepared = self._prepare_prompt(prompt, file)
+        mark("prepare", t0)
+
+        t0 = time.perf_counter()
         search_result = search.build_prompt(prepared)
+        mark("search", t0)
+
         prompt_lower = prompt.lower().strip()
-        simple_chat = (
-            len(prompt) < 80
-            and not any(
-                word in prompt_lower
-                for word in (
-                    "implemente",
-                    "corrija",
-                    "refatore",
-                    "analise",
-                    "backlog",
-                    "planeje",
-                    "arquitetura",
-                    "codigo",
-                    "arquivo",
-                    "python",
-                    "tsx",
-                    "react",
-                )
+        engineering_request = any(
+            word in prompt_lower
+            for word in (
+                "implemente",
+                "corrija",
+                "refatore",
+                "analise",
+                "backlog",
+                "planeje",
+                "arquitetura",
+                "codigo",
+                "arquivo",
+                "python",
+                "tsx",
+                "react",
             )
         )
+
+        simple_chat = file is None and not engineering_request
+
         if simple_chat:
+            t0 = time.perf_counter()
             answer = self.router.ask(
                 prompt=prompt,
                 role=ModelRole.DEFAULT,
                 system_prompt=BASE_SYSTEM_PROMPT,
             )
+            mark("chat", t0)
+
             return ChatResponse(
                 answer=answer,
                 used_memory=False,
@@ -108,12 +129,34 @@ class CognitionPipeline:
                 requires_web=False,
                 provider=self.provider_name,
                 model=self.router.model_for(ModelRole.DEFAULT),
+                timings=ChatTimings(
+                    search=search_result.timings,
+                    model_ms=0.0,
+                    postprocess_ms=0.0,
+                    total_ms=(time.perf_counter() - started) * 1000,
+                ),
+                stage_timings=stages,
             )
+
+        t0 = time.perf_counter()
         supervisor = self._supervise(prepared, file, search_result)
-        self._plan(prepared, supervisor, search_result)
+        mark("supervisor", t0)
+
+        t0 = time.perf_counter()
+        plan_text = self._plan(prepared, supervisor, search_result)
+        mark("planner", t0)
+
+        t0 = time.perf_counter()
         coder, reviewer = self._debate(prepared, supervisor, search_result)
+        mark("debate", t0)
+
+        t0 = time.perf_counter()
         synthesis = self._synthesize(prepared, supervisor, coder, reviewer, search_result)
+        mark("synthesis", t0)
+
+        t0 = time.perf_counter()
         answer, memory_saved = self._finalize_answer(synthesis)
+        mark("postprocess", t0)
 
         return ChatResponse(
             answer=answer,
@@ -129,6 +172,7 @@ class CognitionPipeline:
                 postprocess_ms=0.0,
                 total_ms=(time.perf_counter() - started) * 1000,
             ),
+            stage_timings=stages,
         )
 
     def stream(self, prompt: str, file: str | None = None, chunk_size: int = 120) -> Iterator[dict[str, object]]:
@@ -179,32 +223,24 @@ class CognitionPipeline:
     def _debate(self, prompt: str, supervisor: dict[str, object], search_result: SearchResult) -> tuple[str, str]:
         ctx = f"Solicitação:\n{prompt}\n\nSupervisor:\n{supervisor}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}"
         with ThreadPoolExecutor(max_workers=2) as ex:
-            future_coder = ex.submit(
-                self._ask,
-                ModelRole.CODER,
-                CODER_PROMPT,
-                ctx,
-            )
-            future_reviewer = ex.submit(
-                self._ask,
-                ModelRole.REVIEWER,
-                REVIEWER_PROMPT,
-                ctx,
-            )
+            future_coder = ex.submit(self._ask, ModelRole.CODER, CODER_PROMPT, ctx)
+            future_reviewer = ex.submit(self._ask, ModelRole.REVIEWER, REVIEWER_PROMPT, ctx)
+
             coder = future_coder.result()
             reviewer = future_reviewer.result()
-            print("\n===== CODER =====")
-            print(coder)
-            print("\n===== REVIEWER =====")
-            print(reviewer)
+        print("\n===== CODER =====")
+        print(coder)
+        print("\n===== REVIEWER =====")
+        print(reviewer)
+        print("=====================\n")
         return coder, reviewer
 
     def _synthesize(self, prompt: str, supervisor: dict[str, object], coder: str, reviewer: str, search_result: SearchResult) -> str:
         ctx = f"Solicitação:\n{prompt}\n\nSupervisor:\n{supervisor}\n\nCoder:\n{coder}\n\nReviewer:\n{reviewer}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}"
         result = self._ask(
-        ModelRole.DEFAULT,
-        SYNTH_PROMPT,
-        ctx,
+            ModelRole.DEFAULT,
+            SYNTH_PROMPT,
+            ctx,
         )
         print("\n===== SYNTHESIS =====")
         print(result)
