@@ -147,11 +147,11 @@ class CognitionPipeline:
         mark("planner", t0)
 
         t0 = time.perf_counter()
-        coder, reviewer = self._debate(prepared, supervisor, search_result)
+        coder, reviewer = self._debate(prepared, supervisor, plan_text, search_result)
         mark("debate", t0)
 
         t0 = time.perf_counter()
-        synthesis = self._synthesize(prepared, supervisor, coder, reviewer, search_result)
+        synthesis = self._synthesize(prepared, supervisor, plan_text, coder, reviewer, search_result)
         mark("synthesis", t0)
 
         t0 = time.perf_counter()
@@ -198,16 +198,22 @@ class CognitionPipeline:
             return {"intent": "plan", "primary_role": ModelRole.PLANNER, "parallel": True, "rationale": "pedido de planejamento"}
         if any(h in text for h in CODER_HINTS):
             return {"intent": "code", "primary_role": ModelRole.CODER, "parallel": True, "rationale": "pedido de implementação"}
-        raw = self._ask(ModelRole.PLANNER, SUPERVISOR_PROMPT, f"Solicitação:\n{prompt}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}")
-        data = _extract_json(raw)
-        if isinstance(data, dict):
-            return {
-                "intent": str(data.get("intent", "general")),
-                "primary_role": _role_from_name(str(data.get("primary_role", "default"))),
-                "parallel": bool(data.get("should_parallel", True)),
-                "rationale": str(data.get("rationale", "")),
-            }
-        return {"intent": "general", "primary_role": ModelRole.DEFAULT, "parallel": True, "rationale": "fluxo geral"}
+        # raw = self._ask(ModelRole.PLANNER, SUPERVISOR_PROMPT, f"Solicitação:\n{prompt}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}")
+        # data = _extract_json(raw)
+        # if isinstance(data, dict):
+        #     return {
+        #         "intent": str(data.get("intent", "general")),
+        #         "primary_role": _role_from_name(str(data.get("primary_role", "default"))),
+        #         "parallel": bool(data.get("should_parallel", True)),
+        #         "rationale": str(data.get("rationale", "")),
+        #     }
+        # return {"intent": "general", "primary_role": ModelRole.DEFAULT, "parallel": True, "rationale": "fluxo geral"}
+        return {
+            "intent": "general",
+            "primary_role": ModelRole.DEFAULT,
+            "parallel": True,
+            "rationale": "fluxo geral",
+        }
 
     def _plan(self, prompt: str, supervisor: dict[str, object], search_result: SearchResult) -> str:
         result = self._ask(
@@ -221,7 +227,16 @@ class CognitionPipeline:
         return result
 
     def _debate(self, prompt: str, supervisor: dict[str, object], search_result: SearchResult) -> tuple[str, str]:
-        ctx = f"Solicitação:\n{prompt}\n\nSupervisor:\n{supervisor}\n\nContexto:\n{_limit_text(search_result.prompt, 5000)}"
+        ctx = f"""
+        Solicitação:
+        {prompt}
+        Supervisor:
+        {supervisor}
+        Plano:
+        {plan_text}
+        Contexto:
+        {_limit_text(search_result.prompt, 5000)}
+        """
         with ThreadPoolExecutor(max_workers=2) as ex:
             future_coder = ex.submit(self._ask, ModelRole.CODER, CODER_PROMPT, ctx)
             future_reviewer = ex.submit(self._ask, ModelRole.REVIEWER, REVIEWER_PROMPT, ctx)
