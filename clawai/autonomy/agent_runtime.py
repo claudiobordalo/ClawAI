@@ -4,7 +4,14 @@ import json
 import re
 from typing import Any, Protocol
 
+from clawai.autonomy.context_manager import ContextManager
+from clawai.autonomy.execution_state import ExecutionState
+from clawai.autonomy.llm_metrics import LLMCallMetrics
+from clawai.autonomy.planner import Planner
+from clawai.autonomy.reflector import Reflector
+from clawai.autonomy.synthesizer import Synthesizer
 from clawai.tools.filesystem_tool import FilesystemTool
+from clawai.tools.provider_manager import ProviderManager
 from clawai.tools.tool_executor import ToolExecutor
 from clawai.tools.tool_registry import ToolRegistry
 
@@ -24,49 +31,86 @@ class AgentRuntime:
         self.router = router
         self.tool_executor = tool_executor or self._build_default_tool_executor()
         self.max_iterations = max(1, int(max_iterations))
+        self.provider_manager = ProviderManager().build_default()
+        self.context_manager = ContextManager()
+        self.llm_metrics = LLMCallMetrics(max_calls=10)
 
     def run(self, prompt: str, *, file: str | None = None) -> dict[str, Any]:
+        state = ExecutionState(objective=prompt)
         history: list[dict[str, Any]] = []
         context = self._build_context(prompt, file)
+        planner = Planner(router=self.router)
+        reflector = Reflector(router=self.router)
+        synthesizer = Synthesizer(router=self.router)
 
         for iteration in range(1, self.max_iterations + 1):
-            decision = self._plan_iteration(prompt, context, iteration)
-            parsed = self._parse_decision(decision)
+            self.llm_metrics.record("planner")
+            decision = planner.plan(
+                objective=prompt,
+                context=context,
+                iteration=iteration,
+                available_tools=self._available_tools_summary(),
+                state=state,
+            )
+            state.set_plan(decision.get("actions", []))
+            state.decisions.append(decision.get("reasoning") or "")
+            state.pending_actions = decision.get("actions", [])
+
             tool_calls: list[dict[str, Any]] = []
             tool_results: list[dict[str, Any]] = []
 
-            next_action = parsed.get("next_action") or {}
-            tool_name = next_action.get("tool")
-            arguments = next_action.get("arguments") or {}
+            for action in decision.get("actions", []):
+                if not isinstance(action, dict):
+                    continue
+                tool_name = action.get("tool")
+                arguments = action.get("args") or action.get("arguments") or {}
+                if tool_name and self.tool_executor is not None:
+                    execution = self.tool_executor.execute(tool_name=tool_name, arguments=arguments)
+                    tool_calls.append({"tool": tool_name, "arguments": arguments})
+                    tool_results.append({"tool": tool_name, "result": execution})
+                    state.add_tool_result({"tool": tool_name, "result": execution})
+                    state.mark_action_completed({"id": action.get("id"), "tool": tool_name, "arguments": arguments})
 
-            if tool_name and self.tool_executor is not None:
-                execution = self.tool_executor.execute(tool_name=tool_name, arguments=arguments)
-                tool_calls.append({"tool": tool_name, "arguments": arguments})
-                tool_results.append({"tool": tool_name, "result": execution})
-
-            reflection = self._reflect_iteration(prompt, context, parsed, tool_results, iteration)
+            self.llm_metrics.record("reflection")
+            reflection = reflector.reflect(
+                objective=prompt,
+                context=context,
+                decision=decision,
+                tool_results=tool_results,
+                iteration=iteration,
+                state=state,
+            )
+            if reflection.get("error_type"):
+                state.register_error(str(reflection.get("error_type")))
+            if reflection.get("reflection"):
+                state.temporary_memory.append(str(reflection.get("reflection")))
             history.append(
                 {
                     "iteration": iteration,
-                    "plan": parsed.get("plan", []),
+                    "plan": decision.get("actions", []),
                     "tools_used": tool_calls,
                     "tool_results": tool_results,
-                    "next_decision_reason": parsed.get("reason") or "",
+                    "next_decision_reason": decision.get("reasoning") or "",
                     "reflection": reflection.get("reflection") or "",
+                    "state": state.to_dict(),
                 }
             )
 
-            context = self._update_context(context, parsed, tool_results, reflection)
+            context = self._update_context(context, decision, tool_results, reflection)
 
-            if not parsed.get("should_continue", False):
+            if not reflection.get("should_continue", False) and not decision.get("continue", False):
                 break
 
-        answer = self._synthesize_answer(prompt, history)
+        self.llm_metrics.record("synthesis")
+        answer = synthesizer.synthesize(objective=prompt, history=history)
         return {
             "answer": answer,
             "history": history,
             "used_tools": any(item["tools_used"] for item in history),
             "iterations": len(history),
+            "state": state.to_dict(),
+            "llm_metrics": self.llm_metrics.snapshot(),
+            "abort_reason": "Maximum LLM calls exceeded." if self.llm_metrics.should_abort else None,
         }
 
     def _build_default_tool_executor(self) -> ToolExecutor:
