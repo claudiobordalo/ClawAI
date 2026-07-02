@@ -9,11 +9,13 @@ from pathlib import Path
 from typing import Iterator
 
 from clawai.ai.router import AIRouter, ModelRole
+from clawai.autonomy.agent_runtime import AgentRuntime
 from clawai.documents.reader import documents
 from clawai.memory.memory import memory
 from clawai.cognition.pipeline import CognitionPipeline
 from clawai.cognition.types import PipelineResult
 from clawai.search.search_engine import SearchResult, SearchTimings, search
+from clawai.workspaces.manager import workspace_manager
 
 BASE_SYSTEM_PROMPT = "Você é o ClawAI, um agente de desenvolvimento dentro do próprio projeto. Responda como o ClawAI e seja direto."
 SUPERVISOR_PROMPT = "Classifique a solicitação e responda em JSON puro com intent, primary_role, strategy, should_parallel, confidence e rationale."
@@ -81,6 +83,24 @@ class CognitionPipeline:
         started = time.perf_counter()
         stages: list[ChatStageTiming] = []
 
+        runtime = AgentRuntime(router=self.router, max_iterations=3)
+        runtime_result = runtime.run(prompt, file=file)
+        return ChatResponse(
+            answer=runtime_result["answer"],
+            used_memory=False,
+            used_knowledge=False,
+            requires_web=False,
+            provider=self.provider_name,
+            model=self.router.model_for(ModelRole.DEFAULT),
+            timings=ChatTimings(
+                search=SearchTimings(),
+                model_ms=0.0,
+                postprocess_ms=0.0,
+                total_ms=(time.perf_counter() - started) * 1000,
+            ),
+            stage_timings=stages,
+        )
+
         def mark(name: str, t0: float) -> None:
             stages.append(ChatStageTiming(name=name, ms=(time.perf_counter() - t0) * 1000))
 
@@ -116,7 +136,7 @@ class CognitionPipeline:
         if simple_chat:
             t0 = time.perf_counter()
             answer = self.router.ask(
-                prompt=prompt,
+                prompt=prepared,
                 role=ModelRole.DEFAULT,
                 system_prompt=BASE_SYSTEM_PROMPT,
             )
@@ -182,11 +202,127 @@ class CognitionPipeline:
         yield {"type": "final", "reply": asdict(result)}
 
     def _prepare_prompt(self, prompt: str, file: str | None) -> str:
-        if not file:
-            return prompt
-        path = Path(file)
-        content = documents.read(path)
-        return f"Arquivo enviado:\n{path.name}\n\nConteúdo:\n{content}\n\nPergunta do usuário:\n{prompt}"
+        if file:
+            path = Path(file)
+            content = documents.read(path)
+            return f"Arquivo enviado:\n{path.name}\n\nConteúdo:\n{content}\n\nPergunta do usuário:\n{prompt}"
+
+        workspace_context = self._build_workspace_context(prompt, file)
+        if workspace_context:
+            return f"Contexto do workspace:\n{workspace_context}\n\nPergunta do usuário:\n{prompt}"
+        return prompt
+
+    def _build_workspace_context(self, prompt: str, file: str | None) -> str | None:
+        if file:
+            return None
+
+        try:
+            workspace = workspace_manager.current()
+        except Exception:
+            return "Nenhum workspace está aberto."
+
+        root = Path(getattr(workspace, "root", "")).expanduser().resolve()
+        if not root.exists():
+            return "Nenhum workspace está aberto."
+
+        prompt_lower = (prompt or "").strip().lower()
+        target = self._resolve_workspace_target(prompt_lower, root)
+        if target is not None:
+            rel_path = target.relative_to(root).as_posix() if target.is_relative_to(root) else target.as_posix()
+            if target.is_dir():
+                tree_text = self._build_tree_summary(target, workspace_id=getattr(workspace, "workspace_id", None))
+                return (
+                    f"Workspace ativo: {getattr(workspace, 'name', root.name)}\n"
+                    f"Caminho: {root}\n"
+                    f"Pasta relevante: {rel_path}\n\n"
+                    f"Árvore resumida:\n{tree_text}"
+                )
+            if target.is_file() or target.suffix:
+                try:
+                    content = workspace_manager.read_file(rel_path, workspace_id=getattr(workspace, "workspace_id", None))
+                    excerpt = "\n".join(content.splitlines()[:80])
+                    return (
+                        f"Workspace ativo: {getattr(workspace, 'name', root.name)}\n"
+                        f"Caminho: {root}\n"
+                        f"Arquivo relevante: {rel_path}\n\n"
+                        f"Conteúdo:\n{excerpt}"
+                    )
+                except Exception:
+                    pass
+
+        tree_text = self._build_tree_summary(root, workspace_id=getattr(workspace, "workspace_id", None))
+        return (
+            f"Workspace ativo: {getattr(workspace, 'name', root.name)}\n"
+            f"Caminho: {root}\n\n"
+            f"Árvore resumida:\n{tree_text}"
+        )
+
+    def _build_tree_summary(self, root: Path, *, workspace_id: str | None = None, max_items: int = 40) -> str:
+        try:
+            relative = "" if root == Path(workspace_manager.current().root).resolve() else str(root.relative_to(Path(workspace_manager.current().root).resolve())).replace("\\", "/")
+            items = workspace_manager.tree(relative, workspace_id=workspace_id)
+        except Exception:
+            items = []
+
+        if items:
+            lines = []
+            for item in items[:max_items]:
+                marker = "/" if item.get("directory") else ""
+                lines.append(f"- {item.get('name', '')}{marker}")
+            if len(items) > max_items:
+                lines.append(f"- ... (+{len(items) - max_items} itens)")
+            return "\n".join(lines) or "(vazio)"
+
+        lines: list[str] = []
+        try:
+            for child in sorted(root.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+                if child.name.startswith("."):
+                    continue
+                if child.name in {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".venv", "node_modules"}:
+                    continue
+                marker = "/" if child.is_dir() else ""
+                lines.append(f"- {child.name}{marker}")
+                if len(lines) >= max_items:
+                    break
+        except Exception:
+            return "(vazio)"
+
+        return "\n".join(lines) or "(vazio)"
+
+    def _resolve_workspace_target(self, prompt_lower: str, root: Path) -> Path | None:
+        if not prompt_lower:
+            return None
+
+        matches = re.findall(r"[A-Za-z0-9._/-]+", prompt_lower)
+        for token in matches:
+            if token in {"o", "que", "existe", "nesse", "nesse", "projeto", "analise", "como", "funciona", "frontend", "backend", "api"}:
+                continue
+            candidate = root / token
+            if candidate.exists():
+                return candidate
+
+        if "openai" in prompt_lower:
+            for path in sorted(root.rglob("*")):
+                if path.is_file() and path.suffix.lower() in {".py", ".md", ".json", ".yaml", ".yml", ".toml", ".txt", ".ts", ".tsx", ".js", ".jsx"}:
+                    try:
+                        content = path.read_text(encoding="utf-8", errors="ignore")
+                    except Exception:
+                        continue
+                    if "openai" in content.lower():
+                        return path
+
+        if "frontend" in prompt_lower:
+            candidate = root / "frontend"
+            if candidate.exists():
+                return candidate
+
+        if prompt_lower.startswith("analise "):
+            token = prompt_lower[len("analise "):].strip().split()[0]
+            candidate = root / token
+            if candidate.exists() or candidate.suffix:
+                return candidate
+
+        return None
 
     def _supervise(self, prompt: str, file: str | None, search_result: SearchResult) -> dict[str, object]:
         text = f"{prompt} {Path(file).name if file else ''}".lower()

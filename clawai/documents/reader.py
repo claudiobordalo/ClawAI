@@ -3,10 +3,25 @@
 from pathlib import Path
 import zipfile
 
-import pypdf
-from docx import Document
-from openpyxl import load_workbook
-from pptx import Presentation
+try:
+    import pypdf
+except ModuleNotFoundError:  # pragma: no cover - ambiente sem dependência opcional
+    pypdf = None
+
+try:
+    from docx import Document
+except ModuleNotFoundError:  # pragma: no cover - ambiente sem dependência opcional
+    Document = None
+
+try:
+    from openpyxl import load_workbook
+except ModuleNotFoundError:  # pragma: no cover - ambiente sem dependência opcional
+    load_workbook = None
+
+try:
+    from pptx import Presentation
+except ModuleNotFoundError:  # pragma: no cover - ambiente sem dependência opcional
+    Presentation = None
 
 from clawai.vision.vision import vision
 
@@ -84,6 +99,8 @@ class DocumentReader:
         )
 
     def _pdf(self, file: Path) -> str:
+        if pypdf is None:
+            raise RuntimeError("pypdf não instalado")
 
         reader = pypdf.PdfReader(file)
 
@@ -93,6 +110,8 @@ class DocumentReader:
         )
 
     def _docx(self, file: Path) -> str:
+        if Document is None:
+            raise RuntimeError("python-docx não instalado")
 
         doc = Document(file)
 
@@ -103,6 +122,8 @@ class DocumentReader:
         )
 
     def _xlsx(self, file: Path) -> str:
+        if load_workbook is None:
+            raise RuntimeError("openpyxl não instalado")
 
         wb = load_workbook(
             file,
@@ -133,6 +154,8 @@ class DocumentReader:
         return "\n".join(lines)
 
     def _pptx(self, file: Path) -> str:
+        if Presentation is None:
+            raise RuntimeError("python-pptx não instalado")
 
         prs = Presentation(file)
 

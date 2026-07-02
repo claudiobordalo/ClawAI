@@ -249,5 +249,20 @@ class WorkspaceManager:
             "active_count": sum(1 for workspace in workspaces if workspace.active),
         }
 
+    def open(self, path: str, name: str | None = None) -> WorkspaceInfo:
+        return self.open_workspace(path, name)
+
+    def select(self, workspace_id: str) -> WorkspaceInfo:
+        return self.set_active(workspace_id)
+
+    def close(self, workspace_id: str) -> list[WorkspaceInfo]:
+        return self.close_workspace(workspace_id)
+
+    def read(self, path: str, workspace_id: str | None = None) -> str:
+        return self.read_file(path, workspace_id=workspace_id)
+
+    def write(self, path: str, content: str, workspace_id: str | None = None) -> dict[str, Any]:
+        return self.save_file(path, content, workspace_id=workspace_id)
+
 
 workspace_manager = WorkspaceManager()
