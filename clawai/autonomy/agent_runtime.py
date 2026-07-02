@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import re
 from typing import Any, Protocol
 
 from clawai.autonomy.context_manager import ContextManager
@@ -10,14 +9,18 @@ from clawai.autonomy.llm_metrics import LLMCallMetrics
 from clawai.autonomy.planner import Planner
 from clawai.autonomy.reflector import Reflector
 from clawai.autonomy.synthesizer import Synthesizer
+from clawai.autonomy.tool_context import ToolContext
+from clawai.execution.action_executor import ActionExecutor
 from clawai.tools.filesystem_tool import FilesystemTool
 from clawai.tools.provider_manager import ProviderManager
+from clawai.tools.providers import LocalToolProvider
 from clawai.tools.tool_executor import ToolExecutor
 from clawai.tools.tool_registry import ToolRegistry
 
 
 class RouterProtocol(Protocol):
     def ask(self, *, prompt: str, role: Any, system_prompt: str | None = None) -> str: ...
+    def model_for(self, role: Any) -> str: ...
 
 
 class AgentRuntime:
@@ -31,86 +34,149 @@ class AgentRuntime:
         self.router = router
         self.tool_executor = tool_executor or self._build_default_tool_executor()
         self.max_iterations = max(1, int(max_iterations))
-        self.provider_manager = ProviderManager().build_default()
+        self.provider_manager = self._build_default_provider_manager()
         self.context_manager = ContextManager()
         self.llm_metrics = LLMCallMetrics(max_calls=10)
 
     def run(self, prompt: str, *, file: str | None = None) -> dict[str, Any]:
+        _ = file  # mantido por compatibilidade com chamadas antigas
         state = ExecutionState(objective=prompt)
         history: list[dict[str, Any]] = []
-        context = self._build_context(prompt, file)
+
         planner = Planner(router=self.router)
         reflector = Reflector(router=self.router)
         synthesizer = Synthesizer(router=self.router)
 
+        context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
+
         for iteration in range(1, self.max_iterations + 1):
-            self.llm_metrics.record("planner")
-            decision = planner.plan(
+            # if self._llm_budget_reached():
+            #     break
+
+            self.llm_metrics.record("planner", metadata={"iteration": iteration})
+            decision = self.planner.plan(
                 objective=prompt,
                 context=context,
                 iteration=iteration,
                 available_tools=self._available_tools_summary(),
-                state=state,
+                state=state.to_llm(),
             )
-            state.set_plan(decision.get("actions", []))
-            state.decisions.append(decision.get("reasoning") or "")
-            state.pending_actions = decision.get("actions", [])
+
+            actions = decision.get("actions") if isinstance(decision.get("actions"), list) else []
+            state.set_plan(actions)
+            state.decisions.append(str(decision.get("reasoning") or ""))
+            state.pending_actions = list(actions)
+
+            tool_context = ToolContext(
+                execution_state=state,
+                current_iteration=iteration,
+            )
+            action_executor = ActionExecutor(
+                tool_executor=self.tool_executor,
+                execution_state=state,
+                tool_context=tool_context,
+            )
 
             tool_calls: list[dict[str, Any]] = []
             tool_results: list[dict[str, Any]] = []
 
-            for action in decision.get("actions", []):
+            for action in actions:
                 if not isinstance(action, dict):
                     continue
+
+                execution = action_executor.execute(action)
                 tool_name = action.get("tool")
                 arguments = action.get("args") or action.get("arguments") or {}
-                if tool_name and self.tool_executor is not None:
-                    execution = self.tool_executor.execute(tool_name=tool_name, arguments=arguments)
-                    tool_calls.append({"tool": tool_name, "arguments": arguments})
-                    tool_results.append({"tool": tool_name, "result": execution})
-                    state.add_tool_result({"tool": tool_name, "result": execution})
-                    state.mark_action_completed({"id": action.get("id"), "tool": tool_name, "arguments": arguments})
 
-            self.llm_metrics.record("reflection")
-            reflection = reflector.reflect(
+                tool_calls.append({"tool": tool_name, "arguments": arguments})
+                tool_results.append(
+                    {
+                        "tool": tool_name,
+                        "success": execution.get("success"),
+                        "result": execution.get("result"),
+                        "error": execution.get("error"),
+                        "duration_ms": execution.get("duration_ms"),
+                    }
+                )
+
+            context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
+
+            iteration_record = {
+                "iteration": iteration,
+                "plan": actions,
+                "tool_results": tool_results,
+                "reflection": "",
+            }
+
+            if self._llm_budget_reached():
+                history.append(iteration_record)
+                state.iterations.append(dict(iteration_record))
+                break
+
+            self.llm_metrics.record("reflection", metadata={"iteration": iteration})
+            reflection = self.reflector.reflect(
                 objective=prompt,
                 context=context,
                 decision=decision,
                 tool_results=tool_results,
                 iteration=iteration,
-                state=state,
+                state=state.to_llm(),
             )
-            if reflection.get("error_type"):
+
+            if reflection.get("error_type") and reflection.get("error_type") != "none":
                 state.register_error(str(reflection.get("error_type")))
             if reflection.get("reflection"):
                 state.temporary_memory.append(str(reflection.get("reflection")))
-            history.append(
+
+            iteration_record["reflection"] = str(reflection.get("reflection") or "")
+            # iteration_record["state"] = state.to_dict()
+
+            history.append(iteration_record)
+            state.iterations.append(
                 {
                     "iteration": iteration,
-                    "plan": decision.get("actions", []),
-                    "tools_used": tool_calls,
+                    "plan": actions,
+                    "reflection": iteration_record["reflection"],
                     "tool_results": tool_results,
-                    "next_decision_reason": decision.get("reasoning") or "",
-                    "reflection": reflection.get("reflection") or "",
-                    "state": state.to_dict(),
                 }
             )
 
-            context = self._update_context(context, decision, tool_results, reflection)
+            context = self.context_manager.build_prompt(
+                state=state.to_llm(),
+                objective=prompt,
+            )
 
             if not reflection.get("should_continue", False) and not decision.get("continue", False):
                 break
 
-        self.llm_metrics.record("synthesis")
-        answer = synthesizer.synthesize(objective=prompt, history=history)
+        if self._llm_budget_reached():
+            return {
+                "answer": self._fallback_answer(history, prompt),
+                "history": history,
+                "used_tools": any(item["tool_results"] for item in history),
+                "iterations": len(history),
+                "state": state.to_dict(),
+                "llm_metrics": self.llm_metrics.snapshot(),
+                "abort_reason": "Maximum LLM calls reached.",
+            }
+
+        self.llm_metrics.record(
+            "synthesis",
+            metadata={"iterations": len(history)},
+        )
+        answer = self.synthesizer.synthesize(
+            objective=prompt,
+            history=history,
+        )
+
         return {
             "answer": answer,
             "history": history,
-            "used_tools": any(item["tools_used"] for item in history),
+            "used_tools": any(item["tool_results"] for item in history),
             "iterations": len(history),
             "state": state.to_dict(),
             "llm_metrics": self.llm_metrics.snapshot(),
-            "abort_reason": "Maximum LLM calls exceeded." if self.llm_metrics.should_abort else None,
+            "abort_reason": "Maximum LLM calls reached." if self._llm_budget_reached() else None,
         }
 
     def _build_default_tool_executor(self) -> ToolExecutor:
@@ -118,132 +184,51 @@ class AgentRuntime:
         registry.register(FilesystemTool())
         return ToolExecutor(registry=registry)
 
-    def _build_context(self, prompt: str, file: str | None) -> str:
-        base = [f"Solicitação: {prompt}"]
-        if file:
-            base.append(f"Arquivo: {file}")
-        return "\n".join(base)
-
-    def _plan_iteration(self, prompt: str, context: str, iteration: int) -> str:
-        tools = self._available_tools_summary()
-        system_prompt = (
-            "Você é o planejador de um runtime de agentes. "
-            "Responda apenas com JSON válido. "
-            "Escolha um plano, um motivo para a próxima decisão e, se necessário, uma ferramenta. "
-            "Não use heurísticas baseadas em palavras-chave; use o contexto fornecido. "
-            f"Ferramentas disponíveis: {json.dumps(tools, ensure_ascii=False)}"
-        )
-        payload = (
-            f"Contexto da iteração {iteration}:\n{context}\n\n"
-            "Retorne um JSON com as chaves: "
-            "plan (lista de strings), reason (string), should_continue (boolean), "
-            "next_action (objeto com tool e arguments ou null)."
-        )
-        return self.router.ask(prompt=payload, role="planner", system_prompt=system_prompt)
-
-    def _reflect_iteration(
-        self,
-        prompt: str,
-        context: str,
-        decision: dict[str, Any],
-        tool_results: list[dict[str, Any]],
-        iteration: int,
-    ) -> dict[str, Any]:
-        system_prompt = (
-            "Você é o agente de reflexão. "
-            "Analise o plano, os resultados das ferramentas e diga se deve continuar. "
-            "Responda apenas com JSON válido com as chaves reflection (string) e should_continue (boolean)."
-        )
-        payload = (
-            f"Solicitação original: {prompt}\n\n"
-            f"Contexto: {context}\n\n"
-            f"Decisão atual: {json.dumps(decision, ensure_ascii=False)}\n\n"
-            f"Resultados das ferramentas: {json.dumps(tool_results, ensure_ascii=False)}\n\n"
-            f"Iteração: {iteration}"
-        )
-        raw = self.router.ask(prompt=payload, role="reviewer", system_prompt=system_prompt)
-        return self._parse_json(raw, default={"reflection": "", "should_continue": False})
-
-    def _synthesize_answer(self, prompt: str, history: list[dict[str, Any]]) -> str:
-        system_prompt = (
-            "Você é o sintetizador do runtime. "
-            "Resuma a resposta final em português com base no histórico de execução."
-        )
-        payload = (
-            f"Solicitação original: {prompt}\n\n"
-            f"Histórico estruturado: {json.dumps(history, ensure_ascii=False)}"
-        )
-        return self.router.ask(prompt=payload, role="default", system_prompt=system_prompt)
+    def _build_default_provider_manager(self) -> ProviderManager:
+        manager = ProviderManager()
+        manager.register("local", LocalToolProvider([FilesystemTool()]))
+        return manager
 
     def _available_tools_summary(self) -> list[dict[str, Any]]:
         try:
-            registry = getattr(self.tool_executor, "_registry", None)
-            if registry is None:
-                return []
-            tools = registry.list_tools()
-            names = tools.get("result", []) if isinstance(tools, dict) else []
-            results: list[dict[str, Any]] = []
-            for name in names:
-                tool = registry.get(name)
-                tool_obj = tool.get("result") if isinstance(tool, dict) else None
-                description = getattr(tool_obj, "description", "") or ""
-                results.append({"name": name, "description": description})
-            return results
+            tools: list[dict[str, Any]] = []
+            for tool_name in self.provider_manager.list_tools():
+                resolved = self.provider_manager.get_tool(tool_name)
+                if resolved is None:
+                    continue
+                provider_name, tool = resolved
+                tools.append(
+                    {
+                        "name": tool_name,
+                        "provider": provider_name,
+                        "description": getattr(tool, "description", "") or "",
+                    }
+                )
+            return tools
         except Exception:
             return []
 
-    def _update_context(
-        self,
-        context: str,
-        decision: dict[str, Any],
-        tool_results: list[dict[str, Any]],
-        reflection: dict[str, Any],
-    ) -> str:
-        parts = [context]
-        if decision.get("plan"):
-            parts.append("Plano atual: " + " | ".join(str(item) for item in decision.get("plan", [])))
-        if tool_results:
-            parts.append("Resultados: " + json.dumps(tool_results, ensure_ascii=False))
-        if reflection.get("reflection"):
-            parts.append("Reflexão: " + str(reflection.get("reflection")))
-        return "\n".join(parts)
+    def _llm_budget_reached(self) -> bool:
+        return len(self.llm_metrics.calls) >= self.llm_metrics.max_calls
 
-    def _parse_decision(self, raw: str) -> dict[str, Any]:
-        parsed = self._parse_json(raw, default={
-            "plan": [],
-            "reason": "",
-            "should_continue": False,
-            "next_action": None,
-        })
-        if not isinstance(parsed, dict):
-            return {
-                "plan": [],
-                "reason": "",
-                "should_continue": False,
-                "next_action": None,
-            }
-        plan = parsed.get("plan")
-        if not isinstance(plan, list):
-            plan = []
-        next_action = parsed.get("next_action")
-        if not isinstance(next_action, dict):
-            next_action = None
-        should_continue = bool(parsed.get("should_continue", False))
-        return {
-            "plan": [str(item) for item in plan],
-            "reason": str(parsed.get("reason") or ""),
-            "should_continue": should_continue or next_action is not None,
-            "next_action": next_action,
-        }
+    def _fallback_answer(self, history: list[dict[str, Any]], prompt: str) -> str:
+        if history:
+            last = history[-1]
+            reflection = str(last.get("reflection") or "").strip()
+            if reflection:
+                return reflection
 
-    def _parse_json(self, raw: str, *, default: dict[str, Any]) -> Any:
-        try:
-            text = raw.strip()
-            if text.startswith("```"):
-                text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
-            return json.loads(text)
-        except Exception:
-            return default
+            tool_results = last.get("tool_results") or []
+            if tool_results:
+                return (
+                    "Execução interrompida antes da síntese final por limite de chamadas ao LLM. "
+                    f"Últimos resultados: {json.dumps(tool_results, ensure_ascii=False)}"
+                )
+
+        return (
+            "Execução interrompida antes da síntese final por limite de chamadas ao LLM. "
+            f"Objetivo: {prompt}"
+        )
 
 
 class AutonomyLoop(AgentRuntime):
