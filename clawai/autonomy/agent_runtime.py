@@ -10,13 +10,18 @@ from clawai.autonomy.planner import Planner
 from clawai.autonomy.reflector import Reflector
 from clawai.autonomy.synthesizer import Synthesizer
 from clawai.autonomy.tool_context import ToolContext
+from clawai.execution import action_executor
 from clawai.execution.action_executor import ActionExecutor
 from clawai.tools.filesystem_tool import FilesystemTool
 from clawai.tools.provider_manager import ProviderManager
 from clawai.tools.providers import LocalToolProvider
 from clawai.tools.tool_executor import ToolExecutor
 from clawai.tools.tool_registry import ToolRegistry
-
+from clawai.debug import (
+    RuntimeProfiler,
+    RuntimeTrace,
+    log,
+)
 
 class RouterProtocol(Protocol):
     def ask(self, *, prompt: str, role: Any, system_prompt: str | None = None) -> str: ...
@@ -45,6 +50,15 @@ class AgentRuntime:
 
     def run(self, prompt: str, *, file: str | None = None) -> dict[str, Any]:
         _ = file  # mantido por compatibilidade com chamadas antigas
+        trace = RuntimeTrace()
+        profiler = RuntimeProfiler()
+        trace.add(
+            "run_start",
+            {
+                "prompt": prompt,
+                "file": file,
+            },
+        )
         state = ExecutionState(objective=prompt)
         llm_metrics = LLMCallMetrics(max_calls=10)
         history: list[dict[str, Any]] = []
@@ -56,13 +70,22 @@ class AgentRuntime:
                 break
 
             llm_metrics.record("planner", metadata={"iteration": iteration})
-            decision = self.planner.plan(
-                objective=prompt,
-                context=context,
-                iteration=iteration,
-                available_tools=self._available_tools_summary(),
-                state=state.to_llm(),
+            with profiler.measure("planner") as p:
+                decision = self.planner.plan(
+                    objective=prompt,
+                    context=context,
+                    iteration=iteration,
+                    available_tools=self._available_tools_summary(),
+                    state=state.to_llm(),
+                )
+            trace.add(
+                "planner",
+                {
+                    "elapsed_ms": p.elapsed_ms,
+                    "decision": decision,
+                },
             )
+            log("PLANNER", decision)
             print("\nPLANNER DECISION")
             print(json.dumps(decision, indent=2, ensure_ascii=False))
 
@@ -90,8 +113,20 @@ class AgentRuntime:
                 print("EXECUTANDO:", action)
                 if not isinstance(action, dict):
                     continue
-
-                execution = action_executor.execute(action)
+                with profiler.measure(action["tool"]) as p:
+                    execution = action_executor.execute(action)
+                trace.add(
+                    "tool",
+                    {
+                        "tool": action["tool"],
+                        "elapsed_ms": p.elapsed_ms,
+                        "execution": execution,
+                    },
+                )
+                log(
+                    f"TOOL {action['tool']}",
+                    execution,
+                )
                 tool_name = action.get("tool")
                 arguments = action.get("args") or action.get("arguments") or {}
 
@@ -122,21 +157,30 @@ class AgentRuntime:
                 break
 
             # Só executa reflexão quando houver necessidade.
-            needs_reflection = (
-                decision.get("continue", False)
-                or any(not result.get("success", False) for result in tool_results)
+            needs_reflection = any(
+                not result.get("success", False)
+                for result in tool_results
             )
 
             if needs_reflection:
                 llm_metrics.record("reflection", metadata={"iteration": iteration})
 
-                reflection = self.reflector.reflect(
-                    objective=prompt,
-                    context=context,
-                    decision=decision,
-                    tool_results=tool_results,
-                    iteration=iteration,
-                    state=state.to_llm(),
+                with profiler.measure("reflection") as p:
+                    reflection = self.reflector.reflect(
+                        objective=prompt,
+                        context=context,
+                        decision=decision,
+                        tool_results=tool_results,
+                        iteration=iteration,
+                        state=state.to_llm(),
+                )
+                trace.add(
+                    "reflection",
+                    reflection,
+                )
+                log(
+                    "REFLECTION",
+                    reflection,
                 )
             else:
                 reflection = {
@@ -181,15 +225,33 @@ class AgentRuntime:
                 "synthesis",
                 metadata={"iterations": len(history)},
             )
-
-            answer = self.synthesizer.synthesize(
-                objective=prompt,
-                history=history,
+            with profiler.measure("synthesis") as p:
+                answer = self.synthesizer.synthesize(
+                    objective=prompt,
+                    history=history,
+                )
+            trace.add(
+                "synthesis",
+                answer,
+            )
+            log(
+                "FINAL ANSWER",
+                answer,
             )
         else:
-            answer = "Nenhuma ação foi executada."
+            llm_metrics.record(
+                "direct_answer"
+            )
+            answer = self.router.ask(
+                prompt=prompt,
+                role="assistant",
+            )
 
-        return {
+        try:
+            trace.save()
+        except Exception:
+            pass
+        result = {
             "answer": answer,
             "history": history,
             "used_tools": any(item["tool_results"] for item in history),
@@ -198,6 +260,9 @@ class AgentRuntime:
             "llm_metrics": llm_metrics.snapshot(),
             "abort_reason": None,
         }
+        result["trace"] = trace.snapshot()
+
+        return result
 
     def _build_default_tool_executor(self) -> ToolExecutor:
         registry = ToolRegistry()

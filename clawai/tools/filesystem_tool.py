@@ -290,7 +290,7 @@ class FilesystemTool:
                 duration_ms=(time.perf_counter() - start) * 1000,
             )
 
-    def list_dir(self, path: str) -> RuntimeResult:
+    def list_dir(self, path: str, limit: int | None = None) -> RuntimeResult:
         start = time.perf_counter()
         try:
             p = Path(path)
@@ -301,10 +301,14 @@ class FilesystemTool:
                     error=f"Not a directory: {path}",
                     duration_ms=(time.perf_counter() - start) * 1000,
                 )
-            items = [str(child) for child in p.iterdir()]
+
+            items = sorted(str(child) for child in p.iterdir())
+            if limit is not None:
+                items = items[:limit]
+
             return _runtime_result(
                 success=True,
-                result=sorted(items),
+                result=items,
                 error=None,
                 duration_ms=(time.perf_counter() - start) * 1000,
             )

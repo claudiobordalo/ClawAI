@@ -9,6 +9,15 @@ class ContextManager:
         self.max_recent_results = max_recent_results
 
     def build_prompt(self, *, state: dict[str, Any], objective: str) -> str:
+        parts: list[str] = [
+            "INSTRUÇÕES:",
+            "- Use o contexto como referência, não o repita.",
+            "- Decida ações apenas quando houver ferramenta útil.",
+            "- Não invente ferramentas nem ações.",
+            "",
+            f"OBJETIVO REAL: {self._short_text(objective, 800)}",
+        ]
+
         current_plan = self._as_list(state.get("current_plan"))
         pending_actions = self._as_list(state.get("pending_actions"))
         completed_actions = self._as_list(state.get("completed_actions"))
@@ -21,32 +30,34 @@ class ContextManager:
         temporary_memory = self._as_list(state.get("temporary_memory"))
         subtasks = self._as_list(state.get("subtasks"))
 
-        parts: list[str] = [f"Objetivo: {objective}"]
-
         if current_plan:
-            parts.append("Plano atual: " + self._summarize_actions(current_plan[-self.max_recent_actions :]))
+            parts.append("PLANO ATUAL: " + self._summarize_actions(current_plan[-self.max_recent_actions:]))
         if pending_actions:
-            parts.append("Ações pendentes: " + self._summarize_actions(pending_actions[-self.max_recent_actions :]))
+            parts.append("AÇÕES PENDENTES: " + self._summarize_actions(pending_actions[-self.max_recent_actions:]))
         if completed_actions:
-            parts.append("Ações concluídas: " + self._summarize_actions(completed_actions[-self.max_recent_actions :]))
+            parts.append("AÇÕES CONCLUÍDAS: " + self._summarize_actions(completed_actions[-self.max_recent_actions:]))
         if tool_results:
-            parts.append("Resultados recentes: " + self._summarize_results(tool_results[-self.max_recent_results :]))
+            parts.append("RESULTADOS RECENTES: " + self._summarize_results(tool_results[-self.max_recent_results:]))
         if decisions:
-            parts.append("Decisões recentes: " + " | ".join(self._short_text(str(item)) for item in decisions[-3:]))
+            parts.append("DECISÕES RECENTES: " + " | ".join(self._short_text(str(item)) for item in decisions[-3:]))
         if errors:
-            parts.append("Erros recentes: " + " | ".join(self._short_text(str(item)) for item in errors[-3:]))
+            parts.append("ERROS RECENTES: " + " | ".join(self._short_text(str(item)) for item in errors[-3:]))
         if hypotheses:
-            parts.append("Hipóteses recentes: " + " | ".join(self._short_text(str(item)) for item in hypotheses[-3:]))
+            parts.append("HIPÓTESES RECENTES: " + " | ".join(self._short_text(str(item)) for item in hypotheses[-3:]))
         if opened_files:
-            parts.append("Arquivos abertos: " + " | ".join(self._short_text(str(item)) for item in opened_files[-5:]))
+            parts.append("ARQUIVOS ABERTOS: " + " | ".join(self._short_text(str(item)) for item in opened_files[-5:]))
         if modified_files:
-            parts.append("Arquivos modificados: " + " | ".join(self._short_text(str(item)) for item in modified_files[-5:]))
+            parts.append("ARQUIVOS MODIFICADOS: " + " | ".join(self._short_text(str(item)) for item in modified_files[-5:]))
         if subtasks:
-            parts.append("Subtarefas: " + " | ".join(self._short_text(str(item)) for item in subtasks[-5:]))
+            parts.append("SUBTAREFAS: " + " | ".join(self._short_text(str(item)) for item in subtasks[-5:]))
         if temporary_memory:
-            parts.append("Memória recente: " + " | ".join(self._short_text(str(item)) for item in temporary_memory[-5:]))
+            parts.append("MEMÓRIA RECENTE: " + " | ".join(self._short_text(str(item)) for item in temporary_memory[-5:]))
 
-        return "\n".join(parts)
+        return self._clip("\n".join(parts), 5000)
+    
+    def _clip(self, text: str, limit: int) -> str:
+        text = (text or "").strip()
+        return text if len(text) <= limit else text[:limit] + "..."
 
     def _as_list(self, value: Any) -> list[Any]:
         return value if isinstance(value, list) else []
