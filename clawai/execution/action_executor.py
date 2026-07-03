@@ -5,6 +5,7 @@ from typing import Any, Callable
 
 from clawai.autonomy.execution_state import ExecutionState
 from clawai.autonomy.tool_context import ToolContext
+from clawai.tools.provider_manager import ProviderManager
 from clawai.tools.tool_executor import ToolExecutor
 
 RuntimeContract = dict[str, Any]
@@ -18,11 +19,13 @@ class ActionExecutor:
         self,
         *,
         tool_executor: ToolExecutor | None = None,
+        provider_manager: ProviderManager | None = None,
         provider_registry: dict[str, Any] | None = None,
         execution_state: ExecutionState | None = None,
         tool_context: ToolContext | None = None,
     ) -> None:
         self._tool_executor = tool_executor
+        self._provider_manager = provider_manager
         self._provider_registry = provider_registry or {}
         self._execution_state = execution_state
         self._tool_context = tool_context
@@ -74,17 +77,26 @@ class ActionExecutor:
         start = time.perf_counter()
         tool_name = action.get("tool")
         arguments = action.get("args") or action.get("arguments", {})
-        provider_name = action.get("provider") or "local"
+        provider_name = action.get("provider")
 
         try:
             if self._execution_state is not None:
                 self._execution_state.pending_actions.append(action)
 
-            provider = self._provider_registry.get(provider_name)
+            if self._provider_manager is not None:
+                res = self._provider_manager.execute(
+                    tool_name,
+                    arguments=arguments,
+                    provider_name=provider_name,
+                )
+                self._register_result(action=action, execution=res)
+                return self._normalize_result(tool_name=tool_name, execution=res)
+
+            provider = self._provider_registry.get(provider_name or "local")
             if provider is not None:
                 tool = provider.get_tool(tool_name)
                 if tool is None:
-                    return self._error(tool=tool_name, error=f"Tool not found in provider '{provider_name}'.", start=start, result=None)
+                    return self._error(tool=tool_name, error=f"Tool not found in provider '{provider_name or 'local'}'.", start=start, result=None)
                 res = tool.execute(**arguments)
                 self._register_result(action=action, execution=res)
                 return self._normalize_result(tool_name=tool_name, execution=res)
@@ -92,7 +104,7 @@ class ActionExecutor:
             if self._tool_executor is not None:
                 res = self._tool_executor.execute(tool_name=tool_name, arguments=arguments)
                 self._register_result(action=action, execution=res)
-                return res
+                return self._normalize_result(tool_name=tool_name, execution=res)
 
             return self._error(tool=tool_name, error="No tool executor or provider available.", start=start, result=None)
         except Exception as e:
