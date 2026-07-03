@@ -63,8 +63,11 @@ class AgentRuntime:
                 available_tools=self._available_tools_summary(),
                 state=state.to_llm(),
             )
+            print("\nPLANNER DECISION")
+            print(json.dumps(decision, indent=2, ensure_ascii=False))
 
             actions = decision.get("actions") if isinstance(decision.get("actions"), list) else []
+            print("ACTIONS:", actions)
             state.set_plan(actions)
             state.add_decision(str(decision.get("reasoning") or ""))
             state.set_pending_actions([dict(action) for action in actions if isinstance(action, dict)])
@@ -84,6 +87,7 @@ class AgentRuntime:
             tool_results: list[dict[str, Any]] = []
 
             for action in actions:
+                print("EXECUTANDO:", action)
                 if not isinstance(action, dict):
                     continue
 

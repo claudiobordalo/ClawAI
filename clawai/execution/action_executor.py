@@ -36,6 +36,10 @@ class ActionExecutor:
 
     def execute(self, action: Action) -> RuntimeContract:
         start = time.perf_counter()
+        print("\n========================")
+        print("ACTION EXECUTOR")
+        print("========================")
+        print(json.dumps(action, indent=2, ensure_ascii=False))
         try:
             if not isinstance(action, dict):
                 return self._error(tool=None, error="Invalid action: expected dict.", start=start, result=None)
