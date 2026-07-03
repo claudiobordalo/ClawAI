@@ -9,15 +9,7 @@ class ContextManager:
         self.max_recent_results = max_recent_results
 
     def build_prompt(self, *, state: dict[str, Any], objective: str) -> str:
-        parts: list[str] = [
-            "INSTRUÇÕES:",
-            "- Use o contexto como referência, não o repita.",
-            "- Decida ações apenas quando houver ferramenta útil.",
-            "- Não invente ferramentas nem ações.",
-            "",
-            f"OBJETIVO REAL: {self._short_text(objective, 800)}",
-        ]
-
+        workspace_path = self._state_value(state, ("workspace_path", "workspace", "path", "root"))
         current_plan = self._as_list(state.get("current_plan"))
         pending_actions = self._as_list(state.get("pending_actions"))
         completed_actions = self._as_list(state.get("completed_actions"))
@@ -30,14 +22,26 @@ class ContextManager:
         temporary_memory = self._as_list(state.get("temporary_memory"))
         subtasks = self._as_list(state.get("subtasks"))
 
+        parts: list[str] = [
+            "INSTRUÇÕES:",
+            "- Use o contexto como referência, não o repita.",
+            "- Decida ações apenas quando houver ferramenta útil.",
+            "- Não invente ferramentas nem ações.",
+            "- Se houver um caminho de workspace informado, priorize-o para operações de filesystem.",
+            "",
+            f"OBJETIVO REAL: {self._short_text(objective, 800)}",
+        ]
+
+        if workspace_path:
+            parts.append(f"WORKSPACE ATIVO: {self._short_text(workspace_path, 240)}")
         if current_plan:
-            parts.append("PLANO ATUAL: " + self._summarize_actions(current_plan[-self.max_recent_actions:]))
+            parts.append("PLANO ATUAL: " + self._summarize_actions(current_plan[-self.max_recent_actions :]))
         if pending_actions:
-            parts.append("AÇÕES PENDENTES: " + self._summarize_actions(pending_actions[-self.max_recent_actions:]))
+            parts.append("AÇÕES PENDENTES: " + self._summarize_actions(pending_actions[-self.max_recent_actions :]))
         if completed_actions:
-            parts.append("AÇÕES CONCLUÍDAS: " + self._summarize_actions(completed_actions[-self.max_recent_actions:]))
+            parts.append("AÇÕES CONCLUÍDAS: " + self._summarize_actions(completed_actions[-self.max_recent_actions :]))
         if tool_results:
-            parts.append("RESULTADOS RECENTES: " + self._summarize_results(tool_results[-self.max_recent_results:]))
+            parts.append("RESULTADOS RECENTES: " + self._summarize_results(tool_results[-self.max_recent_results :]))
         if decisions:
             parts.append("DECISÕES RECENTES: " + " | ".join(self._short_text(str(item)) for item in decisions[-3:]))
         if errors:
@@ -54,7 +58,14 @@ class ContextManager:
             parts.append("MEMÓRIA RECENTE: " + " | ".join(self._short_text(str(item)) for item in temporary_memory[-5:]))
 
         return self._clip("\n".join(parts), 5000)
-    
+
+    def _state_value(self, state: dict[str, Any], keys: tuple[str, ...]) -> str | None:
+        for key in keys:
+            value = state.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
+
     def _clip(self, text: str, limit: int) -> str:
         text = (text or "").strip()
         return text if len(text) <= limit else text[:limit] + "..."
