@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from clawai.ai.router import ModelRole
 
@@ -42,6 +43,13 @@ ENGINEERING_HINTS = (
     "erro",
     "bug",
     "falha",
+    "acessar",
+    "abrir",
+    "listar",
+    "verificar",
+    "mostrar",
+    "conteúdo",
+    "conteudo",
 )
 
 WORKSPACE_HINTS = (
@@ -53,12 +61,17 @@ WORKSPACE_HINTS = (
     "arquitetura",
     "repo",
     "repositório",
-    "refatore",
-    "corrija",
-    "implemente",
-    "analise",
-    "explore",
-    "pesquise",
+    "diretório",
+    "diretorio",
+    "pasta",
+    "acessar",
+    "abrir",
+    "listar",
+    "verificar",
+    "mostrar",
+    "ler",
+    "conteúdo",
+    "conteudo",
 )
 
 
@@ -82,6 +95,13 @@ class IntentClassifier:
                     reason="arquivo visual",
                 )
 
+        if self._looks_like_workspace_path(text):
+            return IntentDecision(
+                use_agent=True,
+                role=ModelRole.DEFAULT,
+                reason="prompt com caminho de workspace",
+            )
+
         if any(hint in text for hint in ENGINEERING_HINTS):
             return IntentDecision(
                 use_agent=True,
@@ -101,3 +121,10 @@ class IntentClassifier:
             role=ModelRole.DEFAULT,
             reason="conversa direta",
         )
+
+    def _looks_like_workspace_path(self, text: str) -> bool:
+        if re.search(r"[a-zA-Z]:\\", text):
+            return True
+        if re.search(r"[a-zA-Z0-9_\-]+[\\/][a-zA-Z0-9_\-]+", text):
+            return True
+        return False
