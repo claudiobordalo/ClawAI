@@ -37,7 +37,6 @@ class AgentRuntime:
         self.max_iterations = max(1, int(max_iterations))
         self.provider_manager = self._build_default_provider_manager()
         self.context_manager = ContextManager()
-        # self.llm_metrics = LLMCallMetrics(max_calls=10)
         self.planner = Planner(router=self.router)
         self.reflector = Reflector(router=self.router)
         self.synthesizer = Synthesizer(router=self.router)
@@ -89,10 +88,6 @@ class AgentRuntime:
                 if not isinstance(action, dict):
                     continue
 
-                print("\n========================")
-                print("ACTION")
-                print(json.dumps(action, indent=2, ensure_ascii=False))
-                print("========================")
                 execution = action_executor.execute(action)
                 tool_name = action.get("tool")
                 arguments = action.get("args") or action.get("arguments") or {}
@@ -230,9 +225,6 @@ class AgentRuntime:
             return tools
         except Exception:
             return []
-
-    # def _llm_budget_reached(self, metrics: LLMCallMetrics) -> bool:
-    #     return len(metrics.calls) >= metrics.max_calls
 
     def _fallback_answer(self, history: list[dict[str, Any]], prompt: str) -> str:
         if history:
