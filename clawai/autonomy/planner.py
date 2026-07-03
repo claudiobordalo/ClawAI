@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 from pathlib import Path
+from typing import Any
+
 
 class Planner:
     def __init__(self, *, router: Any) -> None:
@@ -19,57 +20,38 @@ class Planner:
         state: dict[str, Any],
     ) -> dict[str, Any]:
         system_prompt = """
-        Você é exclusivamente o PLANNER do ClawAI.
+Você é exclusivamente o PLANNER do ClawAI.
 
-        Sua única função é decidir quais ferramentas executar.
+Sua única função é decidir quais ferramentas executar.
 
-        NUNCA responda ao usuário.
+NUNCA responda ao usuário.
+NUNCA explique.
+NUNCA resuma.
+NUNCA copie o contexto recebido.
 
-        NUNCA explique.
+Retorne SOMENTE JSON válido.
 
-        NUNCA resuma.
+Formato obrigatório:
+{
+  "goal": "...",
+  "reasoning": "...",
+  "expected_result": "...",
+  "continue": false,
+  "actions": [
+    {
+      "tool": "<tool>",
+      "args": { ... }
+    }
+  ]
+}
 
-        NUNCA copie o contexto recebido.
+Nunca utilize os campos name ou arguments.
+Sempre utilize tool e args.
 
-        Você deve retornar SOMENTE JSON válido.
+Se precisar acessar arquivos, utilize filesystem com action explícita.
+Se houver uma ferramenta apropriada para resolver o objetivo, actions não deve ficar vazio.
+""".strip()
 
-        Formato obrigatório:
-
-        {
-            "goal": "...",
-            "reasoning": "...",
-            "expected_result": "...",
-            "continue": false,
-            "actions": [
-                {
-                    "tool": "<tool>",
-                    "args": { ... }
-                }
-            ]
-        }
-
-        Nunca utilize:
-
-        - name
-        - arguments
-
-        Sempre utilize:
-
-        tool
-        args
-
-        Quando precisar acessar arquivos utilize SEMPRE:
-
-        {
-            "tool":"filesystem",
-            "args":{
-                "action":"..."
-            }
-        }
-
-        Se houver uma ferramenta apropriada para resolver o objetivo,
-        actions NUNCA pode ficar vazio.
-        """
         user_objective = self._extract_user_objective(objective)
         workspace_path = (
             self._extract_workspace_path(objective)
@@ -78,6 +60,7 @@ class Planner:
         )
         payload = (
             f"Pergunta do usuário: {user_objective}\n\n"
+            f"Workspace ativo: {workspace_path or 'não informado'}\n\n"
             f"Contexto resumido:\n{context}\n\n"
             f"Estado resumido: {json.dumps(state, ensure_ascii=False, default=str)}\n\n"
             f"Ferramentas disponíveis: {json.dumps(available_tools, ensure_ascii=False, default=str)}"
@@ -86,31 +69,27 @@ class Planner:
         parsed = self._parse_json(
             raw,
             default={
-                "goal": objective,
+                "goal": user_objective,
                 "reasoning": "Fallback simples",
-                "expected_result": objective,
+                "expected_result": user_objective,
                 "continue": False,
                 "actions": [],
             },
         )
-        parsed = self._apply_fallback_actions(
-            parsed=parsed,
-            objective=objective,
-        )
 
         if isinstance(parsed, list):
             parsed = {
-                "goal": objective,
+                "goal": user_objective,
                 "reasoning": "",
-                "expected_result": objective,
-                "continue": True,
+                "expected_result": user_objective,
+                "continue": False,
                 "actions": parsed,
             }
         elif not isinstance(parsed, dict):
             parsed = {
-                "goal": objective,
+                "goal": user_objective,
                 "reasoning": "Fallback simples",
-                "expected_result": objective,
+                "expected_result": user_objective,
                 "continue": False,
                 "actions": [],
             }
@@ -135,19 +114,65 @@ class Planner:
         continue_flag = parsed.get("continue", False)
         if isinstance(continue_flag, str):
             continue_flag = continue_flag.strip().lower() in {"true", "1", "yes", "sim"}
+
         if not normalized_actions:
             normalized_actions = self._infer_actions(
                 user_objective=user_objective,
                 workspace_path=workspace_path,
                 available_tools=available_tools,
             )
+
         return {
-            "goal": str(parsed.get("goal") or objective),
+            "goal": str(parsed.get("goal") or user_objective),
             "reasoning": str(parsed.get("reasoning") or ""),
-            "expected_result": str(parsed.get("expected_result") or objective),
+            "expected_result": str(parsed.get("expected_result") or user_objective),
             "continue": bool(continue_flag),
             "actions": normalized_actions,
         }
+
+    def _extract_user_objective(self, text: str) -> str:
+        if not text:
+            return ""
+
+        markers = (
+            "Pergunta do usuário:",
+            "Pergunta do usuario:",
+            "Pergunta:",
+        )
+
+        lower = text.lower()
+        for marker in markers:
+            idx = lower.rfind(marker.lower())
+            if idx != -1:
+                tail = text[idx + len(marker) :].strip()
+                if tail:
+                    return tail
+        return text.strip()
+
+    def _extract_workspace_path(self, text: str) -> str | None:
+        if not text:
+            return None
+
+        match = re.search(r"(?im)^Caminho:\s*(.+)$", text)
+        if match:
+            return match.group(1).strip()
+
+        match = re.search(r"(?im)^Workspace ativo:\s*(.+)$", text)
+        if match:
+            return match.group(1).strip()
+
+        match = re.search(r"[A-Za-z]:\\[^\n\r]+", text)
+        if match:
+            return match.group(0).strip()
+
+        return None
+
+    def _extract_workspace_path_from_state(self, state: dict[str, Any]) -> str | None:
+        for key in ("workspace_path", "workspace", "path", "root"):
+            value = state.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return None
 
     def _normalize_action(self, action: Any, iteration: int, index: int) -> dict[str, Any] | None:
         if not isinstance(action, dict):
@@ -180,6 +205,7 @@ class Planner:
             if not isinstance(args, dict):
                 args = {}
                 normalized_action["args"] = args
+            # fallback seguro: quando o LLM não escolhe a ação, listar diretório.
             args.setdefault("action", "list_dir")
 
         if not normalized_action.get("tool"):
@@ -207,6 +233,94 @@ class Planner:
         }
         return mapping.get(name, (None, None))
 
+    def _infer_actions(
+        self,
+        *,
+        user_objective: str,
+        workspace_path: str | None,
+        available_tools: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        if not self._tool_available(available_tools, "filesystem"):
+            return []
+
+        text = user_objective.lower()
+        workspace_root = workspace_path or "."
+        explicit_path = self._extract_workspace_path(user_objective)
+
+        if explicit_path and any(k in text for k in ("acessar", "abrir", "listar", "ver", "explorar", "mostrar")):
+            limit = 10 if re.search(r"\b10\b|\bprimeir", text) else 50
+            return [
+                {
+                    "tool": "filesystem",
+                    "args": {
+                        "action": "list_dir",
+                        "path": explicit_path,
+                        "limit": limit,
+                    },
+                }
+            ]
+
+        if re.search(r"\b(list|liste|listar|mostre|mostrar|exibir|veja)\b", text) and (
+            "arquivo" in text or "arquivos" in text or "pasta" in text or "diret" in text
+        ):
+            limit = 10 if re.search(r"\b10\b|\bprimeir", text) else 50
+            return [
+                {
+                    "tool": "filesystem",
+                    "args": {
+                        "action": "list_dir",
+                        "path": workspace_root,
+                        "limit": limit,
+                    },
+                }
+            ]
+
+        file_matches = list(
+            dict.fromkeys(
+                re.findall(r"\b[\w.\-]+\.(?:md|py|json|txt|toml|yml|yaml|ini|cfg|csv|xml)\b", user_objective, flags=re.I)
+            )
+        )
+        if not file_matches and re.search(r"\bREADME\b", user_objective, flags=re.I):
+            file_matches = ["README.md"]
+
+        if file_matches and any(k in text for k in ("leia", "ler", "abra", "abrir", "analise", "analisar", "mostre", "mostrar", "read")):
+            return [
+                {
+                    "tool": "filesystem",
+                    "args": {
+                        "action": "read_text",
+                        "path": self._resolve_path(file_matches[0], workspace_root),
+                    },
+                }
+            ]
+
+        if file_matches and any(k in text for k in ("procure", "buscar", "encontre", "localize", "search")):
+            return [
+                {
+                    "tool": "filesystem",
+                    "args": {
+                        "action": "search",
+                        "root": workspace_root,
+                        "pattern": file_matches[0],
+                    },
+                }
+            ]
+
+        return []
+
+    def _tool_available(self, available_tools: list[dict[str, Any]], tool_name: str) -> bool:
+        for tool in available_tools:
+            if isinstance(tool, dict) and (tool.get("name") == tool_name or tool.get("tool") == tool_name):
+                return True
+        return False
+
+    def _resolve_path(self, name: str, base: str) -> str:
+        if re.match(r"^[A-Za-z]:\\", name) or name.startswith("\\\\"):
+            return name
+        if base in ("", "."):
+            return name
+        return str(Path(base) / name)
+
     def _parse_json(self, raw: str, *, default: Any) -> Any:
         try:
             text = raw.strip()
@@ -215,117 +329,3 @@ class Planner:
             return json.loads(text)
         except Exception:
             return default
-        
-
-def _extract_user_objective(self, text: str) -> str:
-    if not text:
-        return ""
-
-    markers = (
-        "Pergunta do usuário:",
-        "Pergunta do usuario:",
-        "Pergunta:",
-    )
-
-    lower = text.lower()
-
-    for marker in markers:
-        idx = lower.rfind(marker.lower())
-        if idx != -1:
-            value = text[idx + len(marker):].strip()
-            if value:
-                return value
-
-    return text.strip()
-
-def _extract_workspace_path(self, text: str) -> str | None:
-    if not text:
-        return None
-
-    m = re.search(r"(?im)^Caminho:\s*(.+)$", text)
-    if m:
-        return m.group(1).strip()
-
-    m = re.search(r"[A-Za-z]:\\[^\n\r]+", text)
-    if m:
-        return m.group(0)
-
-    return None
-
-def _extract_workspace_path_from_state(
-    self,
-    state: dict[str, Any],
-) -> str | None:
-
-    for key in (
-        "workspace_path",
-        "workspace",
-        "path",
-        "root",
-    ):
-        value = state.get(key)
-
-        if isinstance(value, str) and value.strip():
-            return value
-
-    return None
-
-def _infer_actions(
-    self,
-    *,
-    user_objective: str,
-    workspace_path: str | None,
-    available_tools: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    if not self._tool_available(available_tools, "filesystem"):
-        return []
-
-    text = user_objective.lower()
-    path = workspace_path or "."
-
-    if re.search(r"\b(list|liste|listar|mostre|mostrar)\b", text) and (
-        "arquivo" in text or "files" in text or "pasta" in text or "diret" in text
-    ):
-        limit = 10 if re.search(r"\b10\b", text) else 50
-        return [{
-            "tool": "filesystem",
-            "args": {"action": "list_dir", "path": path, "limit": limit},
-        }]
-
-    path_match = self._extract_workspace_path(user_objective)
-    if path_match and any(k in text for k in ("acessar", "abrir", "listar", "ver", "explorar")):
-        limit = 10 if re.search(r"\b10\b", text) else 50
-        return [{
-            "tool": "filesystem",
-            "args": {"action": "list_dir", "path": path_match, "limit": limit},
-        }]
-
-    file_matches = list(dict.fromkeys(
-        re.findall(r"\b[\w.\-]+\.(?:md|py|json|txt|toml|yml|yaml|ini|cfg|csv)\b", user_objective, flags=re.I)
-    ))
-    if file_matches and any(k in text for k in ("leia", "ler", "abra", "abrir", "analise", "analisar", "mostre", "mostrar", "read")):
-        return [{
-            "tool": "filesystem",
-            "args": {"action": "read_text", "path": self._resolve_path(file_matches[0], path)},
-        }]
-
-    if file_matches and any(k in text for k in ("procure", "buscar", "encontre", "localize", "search")):
-        return [{
-            "tool": "filesystem",
-            "args": {"action": "search", "root": path, "pattern": file_matches[0]},
-        }]
-
-    return []
-
-def _tool_available(self, available_tools: list[dict[str, Any]], tool_name: str) -> bool:
-    for tool in available_tools:
-        if isinstance(tool, dict) and tool.get("name") == tool_name:
-            return True
-    return False
-
-def _resolve_path(self, name: str, base: str) -> str:
-    if re.match(r"^[A-Za-z]:\\", name) or name.startswith("\\\\"):
-        return name
-    if base in ("", "."):
-        return name
-    return str(Path(base) / name)
