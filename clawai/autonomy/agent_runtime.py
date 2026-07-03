@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
-from clawai.agent import metrics
 from clawai.autonomy.context_manager import ContextManager
 from clawai.autonomy.execution_state import ExecutionState
 from clawai.autonomy.llm_metrics import LLMCallMetrics
