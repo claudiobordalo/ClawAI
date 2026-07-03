@@ -17,10 +17,7 @@ def _safe_copy(value: Any, seen: set[int] | None = None) -> Any:
 
     if isinstance(value, dict):
         seen.add(obj_id)
-        result: dict[str, Any] = {}
-        for key, item in value.items():
-            result[str(key)] = _safe_copy(item, seen)
-        return result
+        return {str(key): _safe_copy(item, seen) for key, item in value.items()}
 
     if isinstance(value, list):
         seen.add(obj_id)
@@ -32,7 +29,7 @@ def _safe_copy(value: Any, seen: set[int] | None = None) -> Any:
 
     if isinstance(value, set):
         seen.add(obj_id)
-        return [_safe_copy(item, seen) for item in sorted(value, key=lambda x: repr(x))]
+        return [_safe_copy(item, seen) for item in sorted(value, key=lambda item: repr(item))]
 
     to_llm = getattr(value, "to_llm", None)
     if callable(to_llm):
@@ -51,6 +48,12 @@ def _safe_copy(value: Any, seen: set[int] | None = None) -> Any:
     return str(value)
 
 
+def _tail(items: list[Any], size: int) -> list[Any]:
+    if size <= 0:
+        return []
+    return _safe_copy(items[-size:])
+
+
 def _sanitize_iteration(item: Any) -> Any:
     cloned = _safe_copy(item)
     if isinstance(cloned, dict):
@@ -61,19 +64,6 @@ def _sanitize_iteration(item: Any) -> Any:
         cloned.pop("runtime", None)
     return cloned
 
-def _tail(items: list[Any], size: int) -> list[Any]:
-    if size <= 0:
-        return []
-    return _safe_copy(items[-size:])
-
-def add_decision(self, decision: str) -> None:
-    self.decisions.append(str(decision))
-
-def set_pending_actions(self, actions: list[dict[str, Any]]) -> None:
-    self.pending_actions = [_safe_copy(a) for a in actions]
-
-def add_memory(self, text: str) -> None:
-    self.temporary_memory.append(str(text))
 
 @dataclass(slots=True)
 class ExecutionState:
@@ -132,11 +122,10 @@ class ExecutionState:
 
     def set_plan(self, plan: list[dict[str, Any]]) -> None:
         self.current_plan = [_safe_copy(action) for action in plan if isinstance(action, dict)]
-        self.subtasks = [
-            str(action.get("tool") or "")
-            for action in plan
-            if isinstance(action, dict)
-        ]
+        self.subtasks = [str(action.get("tool") or "") for action in plan if isinstance(action, dict)]
+
+    def set_pending_actions(self, actions: list[dict[str, Any]]) -> None:
+        self.pending_actions = [_safe_copy(action) for action in actions if isinstance(action, dict)]
 
     def add_tool_result(self, tool_result: dict[str, Any]) -> None:
         self.tool_results.append(_safe_copy(tool_result))
@@ -153,11 +142,13 @@ class ExecutionState:
                 if not (isinstance(pending, dict) and pending.get("id") == action_id)
             ]
         else:
-            self.pending_actions = [
-                pending
-                for pending in self.pending_actions
-                if pending != action_copy
-            ]
+            self.pending_actions = [pending for pending in self.pending_actions if pending != action_copy]
+
+    def add_decision(self, decision: str) -> None:
+        self.decisions.append(str(decision))
+
+    def add_memory(self, text: str) -> None:
+        self.temporary_memory.append(str(text))
 
     def add_hypothesis(self, hypothesis: str) -> None:
         self.hypotheses.append(str(hypothesis))
