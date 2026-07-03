@@ -84,6 +84,10 @@ class ActionExecutor:
                 self._execution_state.pending_actions.append(action)
 
             if self._provider_manager is not None:
+                print("=" * 60)
+                print("ACTION RECEBIDA")
+                print(action)
+                print("=" * 60)
                 res = self._provider_manager.execute(
                     tool_name,
                     arguments=arguments,

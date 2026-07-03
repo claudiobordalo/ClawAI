@@ -31,7 +31,19 @@ class Reflector:
             f"Estado resumido: {json.dumps(state, ensure_ascii=False, default=str)}\n\n"
             f"Iteração: {iteration}"
         )
-        raw = self.router.ask(prompt=payload, role="reviewer", system_prompt=system_prompt)
+        try:
+            raw = self.router.ask(
+                prompt=payload,
+                role="reviewer",
+                system_prompt=system_prompt,
+            )
+        except Exception:
+            return {
+                "reflection": f"Reflection unavailable ({e}).",
+                "should_continue": False,
+                "error_type": "provider_error",
+                "needs_retry": False,
+            }
         parsed = self._parse_json(
             raw,
             default={

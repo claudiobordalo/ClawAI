@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Protocol
 
+from clawai.agent import metrics
 from clawai.autonomy.context_manager import ContextManager
 from clawai.autonomy.execution_state import ExecutionState
 from clawai.autonomy.llm_metrics import LLMCallMetrics
@@ -36,23 +37,27 @@ class AgentRuntime:
         self.max_iterations = max(1, int(max_iterations))
         self.provider_manager = self._build_default_provider_manager()
         self.context_manager = ContextManager()
-        self.llm_metrics = LLMCallMetrics(max_calls=10)
+        # self.llm_metrics = LLMCallMetrics(max_calls=10)
         self.planner = Planner(router=self.router)
         self.reflector = Reflector(router=self.router)
         self.synthesizer = Synthesizer(router=self.router)
 
+    def _llm_budget_reached(self, metrics: LLMCallMetrics) -> bool:
+        return len(metrics.calls) >= metrics.max_calls
+
     def run(self, prompt: str, *, file: str | None = None) -> dict[str, Any]:
         _ = file  # mantido por compatibilidade com chamadas antigas
         state = ExecutionState(objective=prompt)
+        llm_metrics = LLMCallMetrics(max_calls=10)
         history: list[dict[str, Any]] = []
 
         context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
 
         for iteration in range(1, self.max_iterations + 1):
-            if self._llm_budget_reached():
+            if self._llm_budget_reached(llm_metrics):
                 break
 
-            self.llm_metrics.record("planner", metadata={"iteration": iteration})
+            llm_metrics.record("planner", metadata={"iteration": iteration})
             decision = self.planner.plan(
                 objective=prompt,
                 context=context,
@@ -84,6 +89,10 @@ class AgentRuntime:
                 if not isinstance(action, dict):
                     continue
 
+                print("\n========================")
+                print("ACTION")
+                print(json.dumps(action, indent=2, ensure_ascii=False))
+                print("========================")
                 execution = action_executor.execute(action)
                 tool_name = action.get("tool")
                 arguments = action.get("args") or action.get("arguments") or {}
@@ -109,25 +118,39 @@ class AgentRuntime:
                 "reflection": "",
             }
 
-            if self._llm_budget_reached():
+            if self._llm_budget_reached(llm_metrics):
                 history.append(snapshot)
                 state.add_iteration(snapshot)
                 break
 
-            self.llm_metrics.record("reflection", metadata={"iteration": iteration})
-            reflection = self.reflector.reflect(
-                objective=prompt,
-                context=context,
-                decision=decision,
-                tool_results=tool_results,
-                iteration=iteration,
-                state=state.to_llm(),
+            # Só executa reflexão quando houver necessidade.
+            needs_reflection = (
+                decision.get("continue", False)
+                or any(not result.get("success", False) for result in tool_results)
             )
 
-            if reflection.get("error_type") and reflection.get("error_type") != "none":
-                state.register_error(str(reflection.get("error_type")))
-            if reflection.get("reflection"):
-                state.add_memory(str(reflection.get("reflection")))
+            if needs_reflection:
+                llm_metrics.record("reflection", metadata={"iteration": iteration})
+
+                reflection = self.reflector.reflect(
+                    objective=prompt,
+                    context=context,
+                    decision=decision,
+                    tool_results=tool_results,
+                    iteration=iteration,
+                    state=state.to_llm(),
+                )
+            else:
+                reflection = {
+                    "reflection": "",
+                    "should_continue": False,
+                    "needs_retry": False,
+                    "error_type": "none",
+                }
+            if reflection["error_type"] != "none":
+                state.register_error(reflection["error_type"])
+            if reflection["reflection"]:
+                state.add_memory(reflection["reflection"])
 
             snapshot["reflection"] = str(reflection.get("reflection") or "")
             history.append(snapshot)
@@ -135,25 +158,38 @@ class AgentRuntime:
 
             context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
 
-            if not reflection.get("should_continue", False) and not decision.get("continue", False):
+            should_continue = (
+                decision.get("continue", False)
+                or reflection.get("should_continue", False)
+                or reflection.get("needs_retry", False)
+            )
+
+            if not should_continue:
                 break
 
-        if self._llm_budget_reached():
+        if self._llm_budget_reached(llm_metrics):
             return {
                 "answer": self._fallback_answer(history, prompt),
                 "history": history,
                 "used_tools": any(item["tool_results"] for item in history),
                 "iterations": len(history),
                 "state": state.to_dict(),
-                "llm_metrics": self.llm_metrics.snapshot(),
+                "llm_metrics": llm_metrics.snapshot(),
                 "abort_reason": "Maximum LLM calls reached.",
             }
 
-        self.llm_metrics.record("synthesis", metadata={"iterations": len(history)})
-        answer = self.synthesizer.synthesize(
-            objective=prompt,
-            history=history,
-        )
+        if history:
+            llm_metrics.record(
+                "synthesis",
+                metadata={"iterations": len(history)},
+            )
+
+            answer = self.synthesizer.synthesize(
+                objective=prompt,
+                history=history,
+            )
+        else:
+            answer = "Nenhuma ação foi executada."
 
         return {
             "answer": answer,
@@ -161,7 +197,7 @@ class AgentRuntime:
             "used_tools": any(item["tool_results"] for item in history),
             "iterations": len(history),
             "state": state.to_dict(),
-            "llm_metrics": self.llm_metrics.snapshot(),
+            "llm_metrics": llm_metrics.snapshot(),
             "abort_reason": None,
         }
 
@@ -195,8 +231,8 @@ class AgentRuntime:
         except Exception:
             return []
 
-    def _llm_budget_reached(self) -> bool:
-        return len(self.llm_metrics.calls) >= self.llm_metrics.max_calls
+    # def _llm_budget_reached(self, metrics: LLMCallMetrics) -> bool:
+    #     return len(metrics.calls) >= metrics.max_calls
 
     def _fallback_answer(self, history: list[dict[str, Any]], prompt: str) -> str:
         if history:

@@ -56,6 +56,9 @@ class ProviderManager:
                 "error": f"Provider not found for tool: {tool_name}",
                 "duration_ms": 0.0,
             }
+        print("TOOL:", tool_name)
+        print("ARGS:", arguments)
+        print("PROVIDER:", provider_name)
         return provider.execute(tool_name, **args)
 
     def build_default(self) -> "ProviderManager":
