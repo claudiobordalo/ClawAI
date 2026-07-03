@@ -37,10 +37,6 @@ class ActionExecutor:
 
     def execute(self, action: Action) -> RuntimeContract:
         start = time.perf_counter()
-        print("\n========================")
-        print("ACTION EXECUTOR")
-        print("========================")
-        print(json.dumps(action, indent=2, ensure_ascii=False))
         try:
             if not isinstance(action, dict):
                 return self._error(tool=None, error="Invalid action: expected dict.", start=start, result=None)
@@ -89,10 +85,6 @@ class ActionExecutor:
                 self._execution_state.pending_actions.append(action)
 
             if self._provider_manager is not None:
-                print("=" * 60)
-                print("ACTION RECEBIDA")
-                print(action)
-                print("=" * 60)
                 res = self._provider_manager.execute(
                     tool_name,
                     arguments=arguments,
