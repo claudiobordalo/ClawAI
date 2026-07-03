@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-sys.stdout.reconfigure(encoding="utf-8")
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 import traceback
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
@@ -142,11 +142,10 @@ def chat_text(request: ChatRequest):
         result = chat.ask(prompt=request.prompt)
 
         print("\n========== CHAT RESULT ==========")
-        print(result)
+        print(str(getattr(result, "answer", result)).encode("utf-8", errors="replace").decode("utf-8"))
         print("=================================\n")
 
         return _payload(result)
-
     except Exception as exc:
         print("\n========== CHAT ERROR ==========")
         traceback.print_exc()
