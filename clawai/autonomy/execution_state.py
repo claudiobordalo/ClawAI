@@ -1,15 +1,28 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+
+_JSON_SCALARS = (str, int, float, bool, type(None))
 
 
 def _safe_copy(value: Any, seen: set[int] | None = None) -> Any:
     if seen is None:
         seen = set()
 
-    if isinstance(value, (str, int, float, bool, type(None))):
+    if isinstance(value, _JSON_SCALARS):
         return value
+
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    if isinstance(value, bytearray):
+        return bytes(value).decode("utf-8", errors="replace")
+
+    if isinstance(value, Path):
+        return str(value)
 
     obj_id = id(value)
     if obj_id in seen:
@@ -42,6 +55,12 @@ def _safe_copy(value: Any, seen: set[int] | None = None) -> Any:
     if callable(to_dict):
         try:
             return _safe_copy(to_dict(), seen)
+        except Exception:
+            return str(value)
+
+    if hasattr(value, "__dict__"):
+        try:
+            return _safe_copy(vars(value), seen)
         except Exception:
             return str(value)
 
@@ -119,6 +138,12 @@ class ExecutionState:
             "temporary_memory": _tail(self.temporary_memory, 5),
             "iteration_count": len(self.iterations),
         }
+
+    def to_summary(self) -> dict[str, Any]:
+        llm_view = self.to_llm()
+        llm_view["recent_iterations"] = _safe_copy(self.iterations[-3:])
+        llm_view["searches"] = _tail(self.searches, 5)
+        return llm_view
 
     def set_plan(self, plan: list[dict[str, Any]]) -> None:
         self.current_plan = [_safe_copy(action) for action in plan if isinstance(action, dict)]
