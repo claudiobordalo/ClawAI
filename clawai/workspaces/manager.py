@@ -9,6 +9,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from clawai.workspaces.analyzer import ProjectAnalyzer
+
 ROOT = Path(__file__).resolve().parents[2]
 STATE_FILE = ROOT / ".clawai" / "workspaces.json"
 IGNORED_NAMES = {
@@ -71,6 +73,7 @@ class WorkspaceInfo:
 class WorkspaceManager:
     def __init__(self) -> None:
         self._lock = Lock()
+        self._analyzer = ProjectAnalyzer()
         self._workspaces = self._load()
         if not self._workspaces:
             self._workspaces = [
@@ -240,6 +243,11 @@ class WorkspaceManager:
             "workspace_id": workspace_id or self.current().workspace_id,
         }
 
+    def project_map(self, workspace_id: str | None = None, path: str = "") -> dict[str, Any]:
+        root = self.active_root(workspace_id)
+        target = self.resolve_path(path, workspace_id=workspace_id) if path else root
+        return self._analyzer.analyze(target).to_dict()
+
     def summary(self) -> dict[str, Any]:
         current = self.current()
         workspaces = self.list_workspaces()
@@ -247,6 +255,7 @@ class WorkspaceManager:
             "current": current.to_dict(),
             "workspaces": [workspace.to_dict() for workspace in workspaces],
             "active_count": sum(1 for workspace in workspaces if workspace.active),
+            "project_map": self.project_map(current.workspace_id),
         }
 
     def open(self, path: str, name: str | None = None) -> WorkspaceInfo:
