@@ -34,6 +34,13 @@ def _safe_copy(value: Any, seen: set[int] | None = None) -> Any:
         seen.add(obj_id)
         return [_safe_copy(item, seen) for item in sorted(value, key=lambda x: repr(x))]
 
+    to_llm = getattr(value, "to_llm", None)
+    if callable(to_llm):
+        try:
+            return _safe_copy(to_llm(), seen)
+        except Exception:
+            return str(value)
+
     to_dict = getattr(value, "to_dict", None)
     if callable(to_dict):
         try:
@@ -54,6 +61,19 @@ def _sanitize_iteration(item: Any) -> Any:
         cloned.pop("runtime", None)
     return cloned
 
+def _tail(items: list[Any], size: int) -> list[Any]:
+    if size <= 0:
+        return []
+    return _safe_copy(items[-size:])
+
+def add_decision(self, decision: str) -> None:
+    self.decisions.append(str(decision))
+
+def set_pending_actions(self, actions: list[dict[str, Any]]) -> None:
+    self.pending_actions = [_safe_copy(a) for a in actions]
+
+def add_memory(self, text: str) -> None:
+    self.temporary_memory.append(str(text))
 
 @dataclass(slots=True)
 class ExecutionState:
@@ -96,17 +116,17 @@ class ExecutionState:
         return {
             "objective": self.objective,
             "current_plan": _safe_copy(self.current_plan),
-            "subtasks": _safe_copy(self.subtasks[-10:]),
-            "pending_actions": _safe_copy(self.pending_actions[-10:]),
-            "completed_actions": _safe_copy(self.completed_actions[-10:]),
-            "tool_results": _safe_copy(self.tool_results[-8:]),
-            "decisions": _safe_copy(self.decisions[-5:]),
-            "errors": _safe_copy(self.errors[-5:]),
-            "hypotheses": _safe_copy(self.hypotheses[-5:]),
-            "opened_files": _safe_copy(self.opened_files[-10:]),
-            "modified_files": _safe_copy(self.modified_files[-10:]),
-            "artifacts": _safe_copy(self.artifacts[-10:]),
-            "temporary_memory": _safe_copy(self.temporary_memory[-5:]),
+            "subtasks": _tail(self.subtasks, 10),
+            "pending_actions": _tail(self.pending_actions, 10),
+            "completed_actions": _tail(self.completed_actions, 10),
+            "tool_results": _tail(self.tool_results, 8),
+            "decisions": _tail(self.decisions, 5),
+            "errors": _tail(self.errors, 5),
+            "hypotheses": _tail(self.hypotheses, 5),
+            "opened_files": _tail(self.opened_files, 10),
+            "modified_files": _tail(self.modified_files, 10),
+            "artifacts": _tail(self.artifacts, 10),
+            "temporary_memory": _tail(self.temporary_memory, 5),
             "iteration_count": len(self.iterations),
         }
 

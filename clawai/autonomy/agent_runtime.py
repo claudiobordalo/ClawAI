@@ -37,21 +37,20 @@ class AgentRuntime:
         self.provider_manager = self._build_default_provider_manager()
         self.context_manager = ContextManager()
         self.llm_metrics = LLMCallMetrics(max_calls=10)
+        self.planner = Planner(router=self.router)
+        self.reflector = Reflector(router=self.router)
+        self.synthesizer = Synthesizer(router=self.router)
 
     def run(self, prompt: str, *, file: str | None = None) -> dict[str, Any]:
         _ = file  # mantido por compatibilidade com chamadas antigas
         state = ExecutionState(objective=prompt)
         history: list[dict[str, Any]] = []
 
-        planner = Planner(router=self.router)
-        reflector = Reflector(router=self.router)
-        synthesizer = Synthesizer(router=self.router)
-
         context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
 
         for iteration in range(1, self.max_iterations + 1):
-            # if self._llm_budget_reached():
-            #     break
+            if self._llm_budget_reached():
+                break
 
             self.llm_metrics.record("planner", metadata={"iteration": iteration})
             decision = self.planner.plan(
@@ -65,7 +64,7 @@ class AgentRuntime:
             actions = decision.get("actions") if isinstance(decision.get("actions"), list) else []
             state.set_plan(actions)
             state.decisions.append(str(decision.get("reasoning") or ""))
-            state.pending_actions = list(actions)
+            state.pending_actions = [dict(action) for action in actions if isinstance(action, dict)]
 
             tool_context = ToolContext(
                 execution_state=state,
@@ -101,16 +100,17 @@ class AgentRuntime:
 
             context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
 
-            iteration_record = {
+            snapshot = {
                 "iteration": iteration,
-                "plan": actions,
+                "plan": [dict(action) for action in actions if isinstance(action, dict)],
+                "tool_calls": tool_calls,
                 "tool_results": tool_results,
                 "reflection": "",
             }
 
             if self._llm_budget_reached():
-                history.append(iteration_record)
-                state.iterations.append(dict(iteration_record))
+                history.append(snapshot)
+                state.add_iteration(snapshot)
                 break
 
             self.llm_metrics.record("reflection", metadata={"iteration": iteration})
@@ -128,23 +128,11 @@ class AgentRuntime:
             if reflection.get("reflection"):
                 state.temporary_memory.append(str(reflection.get("reflection")))
 
-            iteration_record["reflection"] = str(reflection.get("reflection") or "")
-            # iteration_record["state"] = state.to_dict()
+            snapshot["reflection"] = str(reflection.get("reflection") or "")
+            history.append(snapshot)
+            state.add_iteration(snapshot)
 
-            history.append(iteration_record)
-            state.iterations.append(
-                {
-                    "iteration": iteration,
-                    "plan": actions,
-                    "reflection": iteration_record["reflection"],
-                    "tool_results": tool_results,
-                }
-            )
-
-            context = self.context_manager.build_prompt(
-                state=state.to_llm(),
-                objective=prompt,
-            )
+            context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
 
             if not reflection.get("should_continue", False) and not decision.get("continue", False):
                 break
@@ -160,10 +148,7 @@ class AgentRuntime:
                 "abort_reason": "Maximum LLM calls reached.",
             }
 
-        self.llm_metrics.record(
-            "synthesis",
-            metadata={"iterations": len(history)},
-        )
+        self.llm_metrics.record("synthesis", metadata={"iterations": len(history)})
         answer = self.synthesizer.synthesize(
             objective=prompt,
             history=history,
@@ -176,7 +161,7 @@ class AgentRuntime:
             "iterations": len(history),
             "state": state.to_dict(),
             "llm_metrics": self.llm_metrics.snapshot(),
-            "abort_reason": "Maximum LLM calls reached." if self._llm_budget_reached() else None,
+            "abort_reason": None,
         }
 
     def _build_default_tool_executor(self) -> ToolExecutor:
