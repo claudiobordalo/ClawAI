@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+sys.stdout.reconfigure(encoding="utf-8")
 import traceback
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
