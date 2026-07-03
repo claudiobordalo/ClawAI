@@ -37,7 +37,7 @@ class Reflector:
                 role="reviewer",
                 system_prompt=system_prompt,
             )
-        except Exception:
+        except Exception as e:
             return {
                 "reflection": f"Reflection unavailable ({e}).",
                 "should_continue": False,
