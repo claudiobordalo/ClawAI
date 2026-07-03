@@ -69,26 +69,6 @@ def _read_verify_report() -> tuple[str | None, dict[str, object] | None]:
     return report_text, parsed if isinstance(parsed, dict) else None
 
 
-def _chat_fallback_message(error: Exception) -> dict[str, object]:
-    text = str(error)
-    lower = text.lower()
-    if "out-of-memory" in lower or "unable to allocate" in lower or "failed to allocate" in lower:
-        return {
-            "answer": "O modelo local não conseguiu iniciar por falta de memória. Troque para um modelo menor ou libere RAM/VRAM e tente novamente.",
-            "error": text,
-            "used_memory": False,
-            "requires_web": False,
-            "provider": "ollama",
-            "model": "unavailable",
-        }
-    return {
-        "answer": "A resposta falhou no backend. Verifique o provider local e tente novamente.",
-        "error": text,
-        "used_memory": False,
-        "requires_web": False,
-    }
-
-
 app = FastAPI(title="ClawAI API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
