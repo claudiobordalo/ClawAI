@@ -63,8 +63,8 @@ class AgentRuntime:
 
             actions = decision.get("actions") if isinstance(decision.get("actions"), list) else []
             state.set_plan(actions)
-            state.decisions.append(str(decision.get("reasoning") or ""))
-            state.pending_actions = [dict(action) for action in actions if isinstance(action, dict)]
+            state.add_decision(str(decision.get("reasoning") or ""))
+            state.set_pending_actions([dict(action) for action in actions if isinstance(action, dict)])
 
             tool_context = ToolContext(
                 execution_state=state,
@@ -72,6 +72,7 @@ class AgentRuntime:
             )
             action_executor = ActionExecutor(
                 tool_executor=self.tool_executor,
+                provider_manager=self.provider_manager,
                 execution_state=state,
                 tool_context=tool_context,
             )
@@ -126,7 +127,7 @@ class AgentRuntime:
             if reflection.get("error_type") and reflection.get("error_type") != "none":
                 state.register_error(str(reflection.get("error_type")))
             if reflection.get("reflection"):
-                state.temporary_memory.append(str(reflection.get("reflection")))
+                state.add_memory(str(reflection.get("reflection")))
 
             snapshot["reflection"] = str(reflection.get("reflection") or "")
             history.append(snapshot)
@@ -171,7 +172,8 @@ class AgentRuntime:
 
     def _build_default_provider_manager(self) -> ProviderManager:
         manager = ProviderManager()
-        manager.register("local", LocalToolProvider([FilesystemTool()]))
+        local = LocalToolProvider([FilesystemTool()])
+        manager.register("local", local)
         return manager
 
     def _available_tools_summary(self) -> list[dict[str, Any]]:
