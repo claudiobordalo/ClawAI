@@ -19,6 +19,7 @@ from clawai.workspaces import workspace_manager
 
 ROOT = Path(__file__).resolve().parent
 IGNORED_NAMES = {".git", ".venv", "__pycache__", ".mypy_cache", ".ruff_cache", ".pytest_cache", "node_modules"}
+# small test comment
 
 
 class ChatRequest(BaseModel):
