@@ -8,7 +8,7 @@ from clawai.ai.router import AIRouter, ModelRole
 from clawai.autonomy.agent_runtime import AgentRuntime
 from clawai.cognition.types import PipelineResult
 from clawai.search.search_engine import SearchTimings
-
+from clawai.workspaces.manager import workspace_manager
 from clawai.chat.intent_classifier import IntentClassifier
 from clawai.chat.prompt_builder import PromptBuilder
 

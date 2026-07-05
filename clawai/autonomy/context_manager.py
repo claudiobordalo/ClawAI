@@ -10,17 +10,18 @@ class ContextManager:
 
     def build_prompt(self, *, state: dict[str, Any], objective: str) -> str:
         workspace_path = self._state_value(state, ("workspace_path", "workspace", "path", "root"))
-        current_plan = self._as_list(state.get("current_plan"))
-        pending_actions = self._as_list(state.get("pending_actions"))
-        completed_actions = self._as_list(state.get("completed_actions"))
-        tool_results = self._as_list(state.get("tool_results"))
-        decisions = self._as_list(state.get("decisions"))
-        errors = self._as_list(state.get("errors"))
-        hypotheses = self._as_list(state.get("hypotheses"))
-        opened_files = self._as_list(state.get("opened_files"))
-        modified_files = self._as_list(state.get("modified_files"))
-        temporary_memory = self._as_list(state.get("temporary_memory"))
-        subtasks = self._as_list(state.get("subtasks"))
+        # current_plan = self._as_list(state.get("current_plan"))
+        current_plan = self._as_list(getattr(state, "current_plan", current_plan))
+        pending_actions = self._as_list(getattr(state, "pending_actions", pending_actions))
+        completed_actions = self._as_list(getattr(state, "completed_actions", completed_actions))
+        tool_results = self._as_list(getattr(state, "tool_results", tool_results))
+        decisions = self._as_list(getattr(state, "decisions", decisions))
+        errors = self._as_list(getattr(state, "errors", errors))
+        hypotheses = self._as_list(getattr(state, "hypotheses", hypotheses))
+        opened_files = self._as_list(getattr(state, "opened_files", opened_files))
+        modified_files = self._as_list(getattr(state, "modified_files", modified_files))
+        temporary_memory = self._as_list(getattr(state, "temporary_memory", temporary_memory))
+        subtasks = self._as_list(getattr(state, "subtasks", subtasks))
 
         parts: list[str] = [
             "INSTRUÇÕES:",
@@ -61,7 +62,8 @@ class ContextManager:
 
     def _state_value(self, state: dict[str, Any], keys: tuple[str, ...]) -> str | None:
         for key in keys:
-            value = state.get(key)
+            # value = state.get(key)
+            value = getattr(state, key, None)
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return None

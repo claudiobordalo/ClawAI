@@ -169,7 +169,8 @@ Se houver uma ferramenta apropriada para resolver o objetivo, actions não deve 
 
     def _extract_workspace_path_from_state(self, state: dict[str, Any]) -> str | None:
         for key in ("workspace_path", "workspace", "path", "root"):
-            value = state.get(key)
+            # value = state.get(key)
+            value = getattr(sate, key, value)
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return None
