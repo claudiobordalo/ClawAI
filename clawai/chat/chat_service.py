@@ -6,6 +6,7 @@ from typing import Iterator
 
 from clawai.ai.router import AIRouter, ModelRole
 from clawai.autonomy.agent_runtime import AgentRuntime
+from clawai.cognition.pipeline import CognitionPipeline as ReasoningPipeline
 from clawai.cognition.types import PipelineResult
 from clawai.search.search_engine import SearchTimings
 from clawai.workspaces.manager import workspace_manager
@@ -72,6 +73,7 @@ class CognitionPipeline:
         agent_max_iterations: int = 3,
         max_direct_prompt_chars: int = 8_000,
         max_workspace_items: int = 30,
+        use_reasoning: bool = False,
     ) -> None:
         self.router = router
         self.provider_name = provider_name
@@ -81,6 +83,10 @@ class CognitionPipeline:
             max_prompt_chars=max_direct_prompt_chars,
             max_workspace_items=max_workspace_items,
         )
+        self.reasoning_pipeline = ReasoningPipeline(
+            router=self.router,
+            provider_name=self.provider_name,
+        ) if use_reasoning else None
 
     def execute(self, prompt: str, file: str | None = None) -> ChatResponse:
         started = time.perf_counter()
@@ -107,6 +113,32 @@ class CognitionPipeline:
                     search=SearchTimings(),
                     model_ms=0.0,
                     postprocess_ms=0.0,
+                    total_ms=(time.perf_counter() - started) * 1000,
+                ),
+                stage_timings=stage_timings,
+            )
+
+        if self.reasoning_pipeline is not None:
+            t0 = time.perf_counter()
+            result = self.reasoning_pipeline.execute(prompt=prepared.text, file=file)
+            stage_timings.append(ChatStageTiming(name="reasoning_pipeline", ms=(time.perf_counter() - t0) * 1000))
+
+            t1 = time.perf_counter()
+            answer, memory_saved = self._finalize_answer(result.answer)
+            stage_timings.append(ChatStageTiming(name="postprocess", ms=(time.perf_counter() - t1) * 1000))
+
+            return ChatResponse(
+                answer=answer,
+                used_memory=result.used_memory,
+                used_knowledge=result.used_knowledge,
+                requires_web=result.requires_web,
+                provider=result.provider,
+                model=result.model,
+                memory_saved=memory_saved,
+                timings=ChatTimings(
+                    search=result.timings.search,
+                    model_ms=result.synthesis.duration_ms,
+                    postprocess_ms=result.timings.postprocess_ms,
                     total_ms=(time.perf_counter() - started) * 1000,
                 ),
                 stage_timings=stage_timings,
