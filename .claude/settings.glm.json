@@ -1,0 +1,10 @@
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "sk-or-v1-SUA_CHAVE",
+    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
+
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "z-ai/glm-4.7",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "z-ai/glm-4.7",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "z-ai/glm-4.7"
+  }
+}
