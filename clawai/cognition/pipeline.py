@@ -13,6 +13,7 @@ from clawai.search.search_engine import search
 from .debate import DebateEngine
 from .judge import JudgeEngine
 from .planner import PlannerEngine
+from .response_post_processor import ResponsePostProcessor
 from .supervisor import SupervisorEngine
 from .types import PipelineResult, PipelineTimings
 from .utils import limit_text
@@ -26,6 +27,7 @@ class CognitionPipeline:
         self.planner = PlannerEngine(self.router)
         self.debate_engine = DebateEngine(self.router)
         self.judge = JudgeEngine(self.router)
+        self._postprocessor = ResponsePostProcessor(memory)
 
     def execute(self, prompt: str, file: str | None = None) -> PipelineResult:
         started = time.perf_counter()
@@ -49,7 +51,9 @@ class CognitionPipeline:
         synthesis_ms = (time.perf_counter() - t) * 1000
 
         t = time.perf_counter()
-        answer, memory_saved = self._finalize_answer(synthesis.answer)
+        post = self._postprocessor.process(synthesis.answer)
+        answer = post.answer
+        memory_saved = post.memory_saved
         postprocess_ms = (time.perf_counter() - t) * 1000
 
         total_ms = (time.perf_counter() - started) * 1000
@@ -97,22 +101,3 @@ class CognitionPipeline:
             f"Pergunta do usuário:\n{prompt}"
         )
 
-    def _finalize_answer(self, answer: str) -> tuple[str, bool]:
-        if "<MEMORY>" not in answer or "</MEMORY>" not in answer:
-            return answer, False
-
-        block = answer.split("<MEMORY>", 1)[1].split("</MEMORY>", 1)[0]
-        title = ""
-        content = ""
-
-        for line in block.splitlines():
-            lower = line.lower()
-            if lower.startswith("titulo:"):
-                title = line.split(":", 1)[1].strip()
-            elif lower.startswith("conteudo:"):
-                content = line.split(":", 1)[1].strip()
-
-        if title and content:
-            memory.add(category="general", title=title, content=content, source="chat")
-
-        return answer.split("<MEMORY>", 1)[0].strip(), bool(title and content)
