@@ -2,8 +2,8 @@
 import os
 import threading
 import http.server
-import socketserver
 from functools import partial
+from pathlib import Path
 import webview
 
 from clawai.ai import ModelRole
@@ -48,17 +48,21 @@ class Application:
         """Inicia a interface gráfica da aplicação."""
         if getattr(sys, 'frozen', False):
             # Se estiver rodando como executável (PyInstaller)
-            base_path = sys._MEIPASS
+            base_path = Path(sys._MEIPASS)
         else:
             # Se estiver rodando como script
-            base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            base_path = Path(__file__).resolve().parent.parent
 
-        frontend_path = os.path.join(base_path, 'frontend', 'dist')
+        frontend_path = base_path / 'frontend' / 'dist'
+        if not frontend_path.exists():
+            raise FileNotFoundError(f"Frontend não encontrado em: {frontend_path}")
 
-        handler = partial(http.server.SimpleHTTPRequestHandler, directory=frontend_path)
-        httpd = socketserver.TCPServer(("127.0.0.1", 8080), handler)
-        httpd.allow_reuse_address = True
+        handler = partial(http.server.SimpleHTTPRequestHandler, directory=str(frontend_path))
 
+        class ReusableThreadingHTTPServer(http.server.ThreadingHTTPServer):
+            allow_reuse_address = True
+
+        httpd = ReusableThreadingHTTPServer(("127.0.0.1", 8080), handler)
         server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         server_thread.start()
 
