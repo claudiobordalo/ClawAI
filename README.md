@@ -46,6 +46,21 @@ clawai/
 └── development/     # Development pipeline orchestration
 ```
 
+## Local providers
+
+ClawAI can run against local OpenAI-compatible servers.
+
+To use LM Studio, set:
+
+```bash
+CLAWAI_DEFAULT_PROVIDER=lmstudio
+LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
+LMSTUDIO_API_KEY=lm-studio
+LMSTUDIO_MODEL=<your-loaded-model>
+```
+
+The provider can also list available local models through the backend router when the server supports `/v1/models`.
+
 ## Goal System
 
 The Goal subsystem provides an LLM-free, event-driven framework for defining, planning, tracking, and completing goals. See:
