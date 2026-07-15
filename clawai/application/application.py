@@ -1,5 +1,8 @@
 ﻿import sys
 import os
+import threading
+import http.server
+import socketserver
 import webview
 
 from clawai.ai import ModelRole
@@ -51,10 +54,21 @@ class Application:
             # Se estiver rodando como script
             base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-        html_path = os.path.join(base_path, 'frontend', 'dist', 'index.html')
-        url = f'file:///{html_path}'
+        frontend_path = os.path.join(base_path, 'frontend', 'dist')
 
-        webview.create_window('ClawAI', url=url)
+        # Configurar servidor HTTP local
+        httpd = socketserver.TCPServer(("", 8080), http.server.SimpleHTTPRequestHandler)
+        httpd.socket.setsockopt(0x6001, 1, 1) # Allow immediate reuse of address
+        httpd.socket.bind(("", 8080))
+        httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        # Iniciar o servidor em uma thread separada
+        server_thread = threading.Thread(target=httpd.serve_forever)
+        server_thread.daemon = True
+        server_thread.start()
+
+        # Navegar para o servidor local
+        webview.create_window('ClawAI', http://localhost:8080)
         webview.start()
 
 
