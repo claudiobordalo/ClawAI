@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,24 @@ class Settings:
     memory_path: Path = field(init=False)
     projects_path: Path = field(init=False)
 
-    ollama_host: str = "http://localhost:11434"
+    default_provider: str = field(
+        default_factory=lambda: os.getenv("CLAWAI_DEFAULT_PROVIDER", "ollama")
+    )
+    ollama_host: str = field(
+        default_factory=lambda: os.getenv("OLLAMA_HOST", "http://localhost:11434")
+    )
+    lmstudio_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "LMSTUDIO_BASE_URL",
+            "http://127.0.0.1:1234/v1",
+        )
+    )
+    lmstudio_api_key: str = field(
+        default_factory=lambda: os.getenv("LMSTUDIO_API_KEY", "lm-studio")
+    )
+    lmstudio_default_model: str = field(
+        default_factory=lambda: os.getenv("LMSTUDIO_MODEL", "")
+    )
 
     default_model: str = "gemma4:latest"
     planner_model: str = "qwen3:8b"
@@ -71,6 +89,8 @@ class Settings:
         application = config.get("application", {})
         paths = config.get("paths", {})
         ollama = config.get("ollama", {})
+        lmstudio = config.get("lmstudio", {})
+        providers = config.get("providers", {})
         models = config.get("models", {})
         resources = config.get("resources", {})
 
@@ -85,8 +105,24 @@ class Settings:
                 self.projects_path,
             )
 
+        if isinstance(providers, dict):
+            self.default_provider = str(
+                providers.get("default", self.default_provider)
+            ).strip() or self.default_provider
+
         if isinstance(ollama, dict):
             self.ollama_host = str(ollama.get("host", self.ollama_host))
+
+        if isinstance(lmstudio, dict):
+            self.lmstudio_base_url = str(
+                lmstudio.get("base_url", self.lmstudio_base_url)
+            )
+            self.lmstudio_api_key = str(
+                lmstudio.get("api_key", self.lmstudio_api_key)
+            )
+            self.lmstudio_default_model = str(
+                lmstudio.get("model", self.lmstudio_default_model)
+            )
 
         if isinstance(models, dict):
             self.default_model = str(models.get("default", self.default_model))
