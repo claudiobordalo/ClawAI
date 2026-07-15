@@ -11,10 +11,11 @@ ProviderFactory.register_provider(
     OpenAIProvider,
 )
 
-ProviderFactory.register_provider(
-    "ollama",
-    OllamaProvider,
-)
+if OllamaProvider is not None:
+    ProviderFactory.register_provider(
+        "ollama",
+        OllamaProvider,
+    )
 
 __all__ = [
     "ProviderFactory",
