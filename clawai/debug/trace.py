@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import json
 from pathlib import Path
@@ -27,7 +27,7 @@ class RuntimeTrace:
 
             TraceEvent(
                 stage,
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 data
             )
         )

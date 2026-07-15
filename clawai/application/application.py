@@ -1,4 +1,8 @@
-﻿from clawai.ai import ModelRole
+﻿import sys
+import os
+import webview
+
+from clawai.ai import ModelRole
 from clawai.ai import ModelRouter
 from clawai.prompts import PromptEngine
 from clawai.providers.factory import ProviderFactory
@@ -37,3 +41,22 @@ class Application:
     ) -> ModelRouter:
 
         return self._model_router
+
+    def start(self):
+        """Inicia a interface gráfica da aplicação."""
+        if getattr(sys, 'frozen', False):
+            # Se estiver rodando como executável (PyInstaller)
+            base_path = sys._MEIPASS
+        else:
+            # Se estiver rodando como script
+            base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+
+        html_path = os.path.join(base_path, 'frontend', 'dist', 'index.html')
+        url = f'file:///{html_path}'
+
+        webview.create_window('ClawAI', url=url)
+        webview.start()
+
+
+def create_application() -> "Application":
+    return Application()

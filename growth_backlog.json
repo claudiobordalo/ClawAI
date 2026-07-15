@@ -1,0 +1,239 @@
+[
+  {
+    "id": "EVO-1",
+    "title": "Critical Dependency: abstract_reasoning_engine.py",
+    "description": "High number of imports (7).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\abstract_reasoning_engine.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-2",
+    "title": "Critical Dependency: cognitive_factory.py",
+    "description": "High number of imports (9).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\cognitive_factory.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-3",
+    "title": "Critical Dependency: cognitive_result.py",
+    "description": "High number of imports (8).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\cognitive_result.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-4",
+    "title": "Critical Dependency: debate.py",
+    "description": "High number of imports (8).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\debate.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-5",
+    "title": "Critical Dependency: evolution_analyzer.py",
+    "description": "High number of imports (8).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\evolution_analyzer.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-6",
+    "title": "Critical Dependency: execution_assessment.py",
+    "description": "High number of imports (6).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\execution_assessment.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-7",
+    "title": "Critical Dependency: execution_strategy.py",
+    "description": "High number of imports (6).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\execution_strategy.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-8",
+    "title": "Critical Dependency: judge.py",
+    "description": "High number of imports (7).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\judge.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-9",
+    "title": "Critical Dependency: pipeline.py",
+    "description": "High number of imports (16).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\pipeline.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-10",
+    "title": "Critical Dependency: planner.py",
+    "description": "High number of imports (6).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\planner.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-11",
+    "title": "Critical Dependency: reasoning_engine.py",
+    "description": "High number of imports (15).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\reasoning_engine.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-12",
+    "title": "Critical Dependency: reflection_engine.py",
+    "description": "High number of imports (9).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\reflection_engine.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-13",
+    "title": "Critical Dependency: replanning_engine.py",
+    "description": "High number of imports (6).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\replanning_engine.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-14",
+    "title": "Critical Dependency: supervisor.py",
+    "description": "High number of imports (7).",
+    "priority": 5,
+    "category": "Architecture",
+    "status": "backlog",
+    "impact_score": 1.0,
+    "requirements": [
+      "clawai\\\\cognition\\\\supervisor.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-15",
+    "title": "Modernização: Tipagem Completa em Módulos Core",
+    "description": "Consolidado: 80+ funções em módulos core sem type hints completos. Priorizar: api.py, bootstrap.py, main.py, claw.py.",
+    "priority": 3,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.7,
+    "requirements": [
+      "api.py",
+      "bootstrap.py",
+      "main.py",
+      "claw.py"
+    ],
+    "metadata": {
+      "consolidated_from": ["EVO-15", "EVO-16", "EVO-17", "EVO-18"],
+      "original_count": 4
+    }
+  },
+  {
+    "id": "EVO-16",
+    "title": "Modernização: Tipagem em Testes Unitários",
+    "description": "Consolidado: 60+ funções de teste sem type hints. Baixa prioridade - testes não afetam runtime.",
+    "priority": 1,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.2,
+    "requirements": [
+      "tests/unit/test_agent.py",
+      "tests/unit/test_agent_engine.py",
+      "tests/unit/test_agent_runtime.py",
+      "tests/unit/test_autonomous_executor.py"
+    ],
+    "metadata": {
+      "consolidated_from": ["EVO-19", "EVO-24", "EVO-25", "EVO-72", "EVO-77", "EVO-81", "EVO-100"],
+      "original_count": 60
+    }
+  },
+  {
+    "id": "EVO-17",
+    "title": "Refatoração: Simplificar _verify_api_in_process (verify.py)",
+    "description": "Alta complexidade ciclomática detectada: 15. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "verify.py",
+      "Function: _verify_api_in_process"
+    ],
+    "metadata": {
+      "consolidated_from": ["EVO-22"],
+      "original_count": 1
+    }
+  }
+]

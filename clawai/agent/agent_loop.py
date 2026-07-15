@@ -63,6 +63,7 @@ class AgentLoop(AbstractAgentLoop):
         self._paused = False
         self._cancelled = False
         self._metrics = AgentMetrics()
+        self._iteration_count = 0
 
     @property
     def context(self) -> AgentContext:
@@ -118,7 +119,14 @@ class AgentLoop(AbstractAgentLoop):
                 bus.emit(SESSION_FINISHED, session_id, state="completed")
                 return session
 
+            max_iter = self._context.config.max_iterations
             for goal in backlog.goals:
+                if self._iteration_count >= max_iter:
+                    logger.warning(
+                        "Max iterations reached, stopping agent loop",
+                        extra={"max": max_iter, "current": self._iteration_count},
+                    )
+                    break
                 if self._cancelled:
                     session.state = ExecutionState.CANCELLED
                     bus.emit(SESSION_CANCELLED, session_id)
@@ -155,6 +163,8 @@ class AgentLoop(AbstractAgentLoop):
 
                 if checkpoint:
                     checkpoint.save(session, backlog)
+
+                self._iteration_count += 1
 
                 if result.requires_replan and self._context.config.auto_replan:
                     self._metrics.replan_count += 1
@@ -281,6 +291,11 @@ class AgentLoop(AbstractAgentLoop):
         while attempt <= max_retries:
             if self._cancelled:
                 return None
+            
+            # Check global iteration limit
+            if self._context.config.max_iterations > 0 and self._iteration_count >= self._context.config.max_iterations:
+                logger.warning("Global max iterations reached in goal execution")
+                break
 
             try:
                 exec_result = attempt_execution()

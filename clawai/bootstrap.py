@@ -11,42 +11,76 @@ from clawai.projects.services.project_manager import ProjectManager
 from clawai.storage.providers.json_storage_provider import JsonStorageProvider
 from clawai.storage.services.storage_manager import StorageManager
 from clawai.workspace.workspace import Workspace
-
+from clawai.workspace.manager import WorkspaceManager
+from clawai.ai.router import AIRouter
+from clawai.chat.chat_service import ChatService
+from clawai.cognition.pipeline import CognitionPipeline
+from clawai.search.search_engine import SearchEngine
+from clawai.agents.registry.registry import registry
+from clawai.agents.factory.factory import factory
+from clawai.agents.agent import GeneralAgent
+from clawai.agents.specialist_agent import SpecialistAgent
 
 def build_container() -> ServiceContainer:
 
     container = ServiceContainer()
 
-    storage = StorageManager(
-        JsonStorageProvider(),
-    )
-
+    # Storage & Workspace
+    storage = StorageManager(JsonStorageProvider())
     workspace = Workspace()
-
+    
+    # Memory (ChromaDB)
     embedding = OllamaEmbeddingService()
-
     vector_store = ChromaVectorStore()
-
-    memory = MemoryManager(
+    memory_manager = MemoryManager(
         embedding_service=embedding,
         vector_store=vector_store,
         chunker=Chunker(),
     )
 
+    # AI & Router
     ai = AIManager()
+    ai.register(OllamaProvider(model="gemma4:latest"))
+    
+    router = AIRouter()
+    container.register(AIRouter, router)
 
-    ai.register(
-        OllamaProvider(
-            model="gemma4:latest",
-        )
+    # Search Engine
+    # Note: SearchEngine currently uses JSON memory globals. 
+    # In a full refactor, we would inject MemoryManager here.
+    search_engine = SearchEngine()
+
+    # Cognition Pipeline
+    # Wires together Supervisor, Planner, Debate, Judge
+    pipeline = CognitionPipeline(
+        router=router,
+        provider_name="ollama",
+        memory_manager=memory_manager,
+        search_engine=search_engine,
     )
 
-    projects = ProjectManager(storage)
+    # Chat Service
+    chat_service = ChatService(router=router, pipeline=pipeline)
+    container.register(ChatService, chat_service)
 
-    container.register(StorageManager, storage)
+    # Auto Implement
+    from clawai.autopilot.auto_implement import AutoImplementService
+    auto_implement = AutoImplementService(router=router)
+    container.register(AutoImplementService, auto_implement)
+
+    # Workspace Manager
+    wm = WorkspaceManager()
+    container.register(WorkspaceManager, wm)
+
+    # Projects
+    projects = ProjectManager(storage)
     container.register(ProjectManager, projects)
-    container.register(Workspace, workspace)
-    container.register(MemoryManager, memory)
-    container.register(AIManager, ai)
+
+    # Register Agents
+    registry.register("general", GeneralAgent)
+    registry.register("specialist", SpecialistAgent)
+    
+    # Register Container
+    container.register(ServiceContainer, container)
 
     return container

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from clawai.api.tools_api import router as tools_router
 from clawai.autopilot import auto_implement
+from clawai.autonomy.proactive import ProactiveMonitor
 from clawai.chat.chat_service import chat
 from clawai.workspaces import workspace_manager
 
@@ -70,7 +71,13 @@ def _read_verify_report() -> tuple[str | None, dict[str, object] | None]:
     return report_text, parsed if isinstance(parsed, dict) else None
 
 
-app = FastAPI(title="ClawAI API")
+async def lifespan(app: FastAPI):
+    monitor = ProactiveMonitor()
+    await monitor.start()
+    yield
+    await monitor.stop()
+
+app = FastAPI(title="ClawAI API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 

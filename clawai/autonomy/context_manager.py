@@ -10,18 +10,17 @@ class ContextManager:
 
     def build_prompt(self, *, state: dict[str, Any], objective: str) -> str:
         workspace_path = self._state_value(state, ("workspace_path", "workspace", "path", "root"))
-        # current_plan = self._as_list(state.get("current_plan"))
-        current_plan = self._as_list(getattr(state, "current_plan", current_plan))
-        pending_actions = self._as_list(getattr(state, "pending_actions", pending_actions))
-        completed_actions = self._as_list(getattr(state, "completed_actions", completed_actions))
-        tool_results = self._as_list(getattr(state, "tool_results", tool_results))
-        decisions = self._as_list(getattr(state, "decisions", decisions))
-        errors = self._as_list(getattr(state, "errors", errors))
-        hypotheses = self._as_list(getattr(state, "hypotheses", hypotheses))
-        opened_files = self._as_list(getattr(state, "opened_files", opened_files))
-        modified_files = self._as_list(getattr(state, "modified_files", modified_files))
-        temporary_memory = self._as_list(getattr(state, "temporary_memory", temporary_memory))
-        subtasks = self._as_list(getattr(state, "subtasks", subtasks))
+        current_plan = self._as_list(state.get("current_plan") if isinstance(state, dict) else getattr(state, "current_plan", None))
+        pending_actions = self._as_list(state.get("pending_actions") if isinstance(state, dict) else getattr(state, "pending_actions", None))
+        completed_actions = self._as_list(state.get("completed_actions") if isinstance(state, dict) else getattr(state, "completed_actions", None))
+        tool_results = self._as_list(state.get("tool_results") if isinstance(state, dict) else getattr(state, "tool_results", None))
+        decisions = self._as_list(state.get("decisions") if isinstance(state, dict) else getattr(state, "decisions", None))
+        errors = self._as_list(state.get("errors") if isinstance(state, dict) else getattr(state, "errors", None))
+        hypotheses = self._as_list(state.get("hypotheses") if isinstance(state, dict) else getattr(state, "hypotheses", None))
+        opened_files = self._as_list(state.get("opened_files") if isinstance(state, dict) else getattr(state, "opened_files", None))
+        modified_files = self._as_list(state.get("modified_files") if isinstance(state, dict) else getattr(state, "modified_files", None))
+        temporary_memory = self._as_list(state.get("temporary_memory") if isinstance(state, dict) else getattr(state, "temporary_memory", None))
+        subtasks = self._as_list(state.get("subtasks") if isinstance(state, dict) else getattr(state, "subtasks", None))
 
         parts: list[str] = [
             "INSTRUÇÕES:",

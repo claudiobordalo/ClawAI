@@ -1,15 +1,9 @@
-from clawai.core.config.config_manager import ConfigManager
-from clawai.core.config.loaders import YamlLoader
+from clawai.application import create_application
 
 
 def main() -> None:
-    manager = ConfigManager(
-        loader=YamlLoader("configs/config.yaml"),
-    )
-
-    manager.load()
-
-    print(manager.all())
+    app = create_application()
+    app.start()
 
 
 if __name__ == "__main__":

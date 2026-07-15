@@ -15,6 +15,13 @@ from typing import Any
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
+
+try:
+    from clawai.backlog import BacklogManager, run_auto_diagnosis, run_auto_planning
+    from clawai.autonomy import SafeExecutor
+    BACKLOG_AVAILABLE = True
+except ImportError:
+    BACKLOG_AVAILABLE = False
 FRONTEND = ROOT / "frontend"
 REPORT_PATH = ROOT / "verify_report.json"
 CAPTURE_LIMIT = 12_000
@@ -219,69 +226,83 @@ def _run_pytest() -> tuple[StepResult, PytestSummary]:
     )
 
 
-def _verify_api() -> tuple[StepResult, bool | None, bool | None, bool | None, bool | None, str | None]:
+def _check_health(client: "TestClient") -> tuple[bool, dict[str, Any]]:
+    resp = client.get("/health")
+    ok = resp.status_code == 200
+    payload: dict[str, Any] = {}
+    if ok:
+        try:
+            payload = resp.json()
+            ok = payload.get("status") == "ok"
+        except Exception:
+            payload = {}
+    return ok, payload
 
-    command = _python_cmd() + ["-m", "pytest", "-q"]
-    started = time.perf_counter()
-    completed = subprocess.run(
-        command,
-        cwd=str(ROOT),
-        capture_output=True,
-        text=True,
-        shell=False,
-    )
-    duration_ms = (time.perf_counter() - started) * 1000
-    stdout = completed.stdout or ""
-    stderr = completed.stderr or ""
-    output = stdout + "\n" + stderr
-    summary = _parse_pytest_summary(output)
+def _check_tree(client: "TestClient") -> bool:
+    resp = client.get("/api/tree")
+    if resp.status_code != 200:
+        return False
+    try:
+        return isinstance(resp.json(), list)
+    except Exception:
+        return False
 
-    permission_bug = (
-        completed.returncode != 0
-        and "PermissionError" in output
-        and "pytest-current" in output
-        and re.search(r"\b\d+\s+passed\b", output) is not None
-    )
-    success = completed.returncode == 0 or permission_bug
+def _check_chat(client: "TestClient", app_module: Any) -> tuple[bool, str | None]:
+    """Check /api/chat endpoint. Returns (is_ok, answer_preview)."""
+    with patch.object(app_module.chat, "ask", return_value="ok"):
+        resp = client.post("/api/chat", json={"prompt": "Responda apenas com ok."})
+    
+    ok = resp.status_code == 200
+    preview: str | None = None
+    
+    if ok:
+        try:
+            data = resp.json()
+            ans = data.get("answer")
+            if isinstance(ans, str) and ans.strip():
+                preview = ans.strip()
+            else:
+                ok = False
+        except Exception:
+            ok = False
+            
+    return ok, preview
 
-    note = None
-    if permission_bug:
-        note = "pytest teardown PermissionError ignored because all tests passed"
+def _check_file(client: "TestClient", app_module: Any) -> bool:
+    temp_rel = ".clawai/verify_temp.txt"
+    temp_abs = app_module.ROOT / temp_rel
+    try:
+        temp_abs.parent.mkdir(parents=True, exist_ok=True)
+        temp_abs.write_text("verify", encoding="utf-8")
+    except Exception:
+        return False
 
-    return (
-        StepResult(
-            name="Pytest",
-            command=" ".join(command),
-            success=success,
-            return_code=0 if success else completed.returncode,
-            duration_ms=duration_ms,
-            stdout=_trim(stdout),
-            stderr=_trim(stderr),
-            note=note,
-        ),
-        summary,
-    )
-
+    try:
+        resp = client.post("/api/file", json={"path": temp_rel, "content": "verify"})
+        if resp.status_code != 200:
+            return False
+        resp = client.get("/api/file", params={"path": temp_rel})
+        return resp.status_code == 200 and "verify" in resp.text
+    finally:
+        try:
+            temp_abs.unlink()
+        except Exception:
+            pass
 
 def _verify_api_in_process() -> tuple[StepResult, dict[str, Any] | None]:
     started = time.perf_counter()
-
     if importlib.util.find_spec("fastapi") is None:
         duration_ms = (time.perf_counter() - started) * 1000
         return (
             StepResult(
                 name="api",
-                command="GET /health; POST /api/chat; GET /api/tree; GET /api/file",
+                command="GET /health; POST /api/chat; GET /api/tree; POST /api/file; GET /api/file",
                 success=True,
                 return_code=0,
                 duration_ms=duration_ms,
                 skipped=True,
                 note="fastapi not installed; API checks skipped",
             ),
-            None,
-            None,
-            None,
-            None,
             None,
         )
 
@@ -292,80 +313,15 @@ def _verify_api_in_process() -> tuple[StepResult, dict[str, Any] | None]:
 
         client = TestClient(app_module.app)
 
-        health_response = client.get("/health")
-        health_ok = health_response.status_code == 200
-        health_payload: dict[str, Any] = {}
-        if health_ok:
-            try:
-                health_payload = health_response.json()
-            except Exception:
-                health_payload = {}
-            health_ok = health_payload.get("status") == "ok"
-
-        tree_response = client.get("/api/tree")
-        tree_ok = tree_response.status_code == 200
-        if tree_ok:
-            try:
-                tree_payload = tree_response.json()
-                tree_ok = isinstance(tree_payload, list)
-            except Exception:
-                tree_ok = False
-
-        with patch.object(app_module.chat, "ask", return_value="ok"):
-            chat_response = client.post(
-                "/api/chat",
-                json={"prompt": "Responda apenas com ok."},
-            )
-
-        chat_ok = chat_response.status_code == 200
-        answer_preview: str | None = None
-        if chat_ok:
-            try:
-                chat_payload = chat_response.json()
-            except Exception:
-                chat_payload = {}
-            answer = chat_payload.get("answer")
-            if isinstance(answer, str) and answer.strip():
-                answer_preview = answer.strip()
-            else:
-                chat_ok = False
-
-        file_ok = False
-        temp_rel = ".clawai/verify_temp.txt"
-        temp_abs = app_module.ROOT / temp_rel
-        save_response = client.post(
-            "/api/file",
-            json={
-                "path": temp_rel,
-                "content": "verify",
-            },
-        )
-        if save_response.status_code == 200:
-            read_response = client.get(
-                "/api/file",
-                params={"path": temp_rel},
-            )
-            if read_response.status_code == 200:
-                file_ok = "verify" in read_response.text
-
-        try:
-            temp_abs.parent.mkdir(parents=True, exist_ok=True)
-            temp_abs.write_text("verify", encoding="utf-8")
-            save_response = client.post(
-                "/api/file",
-                json={"path": temp_rel, "content": "verify"},
-            )
-            if save_response.status_code == 200:
-                read_response = client.get("/api/file", params={"path": temp_rel})
-                file_ok = read_response.status_code == 200 and "verify" in read_response.text
-        finally:
-            try:
-                temp_abs.unlink()
-            except Exception:
-                pass
+        health_ok, health_payload = _check_health(client)
+        tree_ok = _check_tree(client)
+        chat_ok, answer_preview = _check_chat(client, app_module)
+        file_ok = _check_file(client, app_module)
 
         success = health_ok and tree_ok and chat_ok and file_ok
         duration_ms = (time.perf_counter() - started) * 1000
+        
+        # Payload construction simplified
         payload = {
             "health_ok": health_ok,
             "tree_ok": tree_ok,
@@ -373,9 +329,8 @@ def _verify_api_in_process() -> tuple[StepResult, dict[str, Any] | None]:
             "file_ok": file_ok,
             "answer_preview": answer_preview,
             "health_payload": health_payload if health_ok else None,
-            "chat_status_code": chat_response.status_code,
+            "chat_status_code": None,
         }
-        stdout = json.dumps(payload, ensure_ascii=False, indent=2)
 
         return (
             StepResult(
@@ -384,7 +339,7 @@ def _verify_api_in_process() -> tuple[StepResult, dict[str, Any] | None]:
                 success=success,
                 return_code=0 if success else 1,
                 duration_ms=duration_ms,
-                stdout=stdout,
+                stdout=json.dumps(payload, ensure_ascii=False, indent=2),
                 stderr="" if success else "API verification failed",
             ),
             payload,
@@ -549,6 +504,23 @@ def main() -> int:
 
     api_step, api_payload = _verify_api()
     steps.append(api_step)
+
+    # Auto-diagnosis, planning and execution step
+    if BACKLOG_AVAILABLE:
+        try:
+            backlog = BacklogManager()
+            run_auto_diagnosis(backlog)
+            print("[AUTO-DIAG] Backlog updated with technical debt.")
+            
+            roadmap = run_auto_planning(backlog)
+            print(f"[AUTO-PLAN] Roadmap generated with {len(roadmap['phases'])} phases.")
+            
+            # Execute high priority tasks
+            executor = SafeExecutor()
+            executor.execute_backlog_phase(backlog, "phase-1")
+            print("[AUTO-EXEC] Execution phase completed.")
+        except Exception as e:
+            print(f"[AUTO-EXEC] Failed to execute plan: {e}")
 
     success = all(step.success for step in steps)
     

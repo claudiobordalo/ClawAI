@@ -1,17 +1,110 @@
-from clawai.application import Application
-from clawai.bootstrap import build_container
+"""
+ClawAI Main Entry Point - Integra backend e frontend para distribuição standalone.
+"""
 
+import os
+import sys
+import threading
+import time
+import webbrowser
+from pathlib import Path
 
-def main() -> None:
+# Adiciona o diretório raiz ao Python path
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
 
-    container = build_container()
+# Configura variáveis de ambiente
+os.environ.setdefault("CLAWAI_MODE", "standalone")
 
-    app = Application(container)
+def ensure_frontend():
+    """Garante que o frontend está buildado."""
+    frontend_dist = ROOT / "frontend" / "dist"
+    
+    if not frontend_dist.exists():
+        print("\n[INFO] Buildando frontend...")
+        try:
+            import subprocess
+            frontend_dir = ROOT / "frontend"
+            result = subprocess.run(
+                ["npm", "run", "build"],
+                cwd=frontend_dir,
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"[WARN] Falha no build: {result.stderr[:200]}")
+                return False
+            print("[OK] Frontend buildado com sucesso.")
+        except Exception as e:
+            print(f"[WARN] Erro ao buildar: {e}")
+            return False
+    
+    return True
 
-    app.initialize()
+def start_server():
+    """Inicia o servidor FastAPI com frontend estático."""
+    from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    from api import app as backend_app
+    
+    # Cria um novo app para standalone
+    standalone_app = FastAPI()
+    
+    # Mount o backend em /api
+    standalone_app.mount("/api", backend_app)
+    
+    # Mount o frontend
+    frontend_dist = ROOT / "frontend" / "dist"
+    if frontend_dist.exists():
+        standalone_app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+        print("\n" + "="*60)
+        print("  ClawAI Desktop Iniciado")
+        print("="*60)
+        print("  Frontend: http://127.0.0.1:8000")
+        print("  Backend:  http://127.0.0.1:8000/api")
+        print("="*60 + "\n")
+    else:
+        # Fallback para API apenas
+        @standalone_app.get("/")
+        async def root():
+            return {"status": "ok", "message": "ClawAI API - Frontend não disponível"}
+        
+        print("\n" + "="*60)
+        print("  ClawAI Desktop Iniciado (Modo API)")
+        print("="*60)
+        print("  Backend:  http://127.0.0.1:8000/api")
+        print("="*60 + "\n")
+    
+    import uvicorn
+    uvicorn.run(standalone_app, host="127.0.0.1", port=8000, log_level="info")
 
-    print("ClawAI initialized successfully.")
-
+def main():
+    """Função principal."""
+    print("Iniciando ClawAI Desktop...")
+    
+    # Garante frontend
+    ensure_frontend()
+    
+    # Inicia servidor
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+    
+    # Aguarda início
+    time.sleep(2)
+    
+    # Abre navegador
+    try:
+        webbrowser.open("http://127.0.0.1:8000")
+        print("[INFO] Navegador aberto em http://127.0.0.1:8000")
+    except Exception:
+        print("[INFO] Abra http://127.0.0.1:8000 no navegador")
+    
+    # Mantém rodando
+    try:
+        server_thread.join()
+    except KeyboardInterrupt:
+        print("\n[INFO] ClawAI Desktop encerrado.")
 
 if __name__ == "__main__":
     main()

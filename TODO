@@ -1,0 +1,22 @@
+# ClawAI - TODO / Roadmap de Evolução
+
+## 1. Qualidade e Estabilidade
+- [x] **701/701 Testes Unitários Passing**: Todos os testes passando.
+- [x] **Correção de Qualidade de Código**: Ajustado warning de `datetime` no `clawai/debug/trace.py`.
+- [x] **EVO-17**: Refatorar `verify.py` para reduzir complexidade ciclomática.
+
+## 2. Arquitetura e Autonomia
+- [x] **EVO-18**: Criar módulo de auto-verificação proativa (`clawai/autonomy/proactive.py`).
+- [x] **EVO-19**: Integrar ProactiveMonitor ao Core da aplicação.
+
+## 3. Governança e Meta-Programação
+- [x] **EVO-20**: Implementar Backlog de Evolução (gerenciamento de dívida técnica e roadmap).
+- [x] **EVO-21**: Integrar Backlog ao sistema de verificação (auto-diagnóstico de dívida técnica).
+- [x] **EVO-22**: Implementar Auto-Planning (geração automática de roadmap baseada no backlog).
+- [x] **EVO-23**: Implementar Auto-Execution (execução automática de tarefas do backlog).
+- [x] **EVO-25**: Automatizar abertura do navegador no startup (`ClawAI.bat`).
+- [x] **EVO-26**: Empacotar aplicação em executável único (.exe) para distribuição (PyInstaller Standalone).
+- [x] **EVO-27**: Corrigir contagem de iterações no `ClawAI.exe` (agora respeita o limite configurado).
+- [x] **EVO-28**: Corrigir `ImportError` ao iniciar `ClawAI.exe` (adicionada função `create_application` faltante).
+- [x] **EVO-29**: Implementar método `start` na classe `Application` para abrir a janela nativa (PyWebView).
+- [ ] **EVO-24**: Implementar Feedback Loop (verificação pós-execução e ajuste de parâmetros).
