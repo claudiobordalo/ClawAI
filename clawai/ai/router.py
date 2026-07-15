@@ -24,11 +24,15 @@ class ModelRouter:
         self,
         settings: Settings | None = None,
         provider_factory: type[ProviderFactory] = ProviderFactory,
-        provider: str = "ollama",
+        provider: str | None = None,
     ) -> None:
         self._settings = settings or Settings()
         self._provider_factory = provider_factory
-        self._provider = provider
+        self._provider = (provider or self._settings.default_provider).strip() or self._settings.default_provider
+
+    @property
+    def provider_name(self) -> str:
+        return self._provider
 
     def model_for(
         self,
@@ -56,6 +60,27 @@ class ModelRouter:
             settings=self._settings,
             model=self.model_for(role),
         )
+
+    def available_models(self, provider: str | None = None) -> list[str]:
+        target_provider = (provider or self._provider).strip() or self._provider
+
+        try:
+            instance = self._provider_factory.create(
+                provider=target_provider,
+                settings=self._settings,
+                model=self.model_for(ModelRole.DEFAULT),
+            )
+        except Exception:
+            return []
+
+        list_models = getattr(instance, "available_models", None)
+        if not callable(list_models):
+            return []
+
+        try:
+            return list(list_models())
+        except Exception:
+            return []
 
     def ask(
         self,
