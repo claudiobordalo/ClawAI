@@ -22,7 +22,8 @@ class LMStudioProvider(BaseProvider):
         if settings is not None:
             base_url = base_url or getattr(settings, "lmstudio_base_url", None)
             api_key = api_key or getattr(settings, "lmstudio_api_key", None)
-            model = model or getattr(settings, "lmstudio_default_model", model)
+            if not model or model == "local-model":
+                model = getattr(settings, "lmstudio_default_model", model)
 
         self._model = model
         self._base_url = (
