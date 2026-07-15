@@ -3,6 +3,7 @@ import os
 import threading
 import http.server
 import socketserver
+from functools import partial
 import webview
 
 from clawai.ai import ModelRole
@@ -35,14 +36,12 @@ class Application:
     def prompt_engine(
         self,
     ) -> PromptEngine:
-
         return self._prompt_engine
 
     @property
     def model_router(
         self,
     ) -> ModelRouter:
-
         return self._model_router
 
     def start(self):
@@ -56,20 +55,19 @@ class Application:
 
         frontend_path = os.path.join(base_path, 'frontend', 'dist')
 
-        # Configurar servidor HTTP local
-        httpd = socketserver.TCPServer(("", 8080), http.server.SimpleHTTPRequestHandler)
-        httpd.socket.setsockopt(0x6001, 1, 1) # Allow immediate reuse of address
-        httpd.socket.bind(("", 8080))
-        httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        handler = partial(http.server.SimpleHTTPRequestHandler, directory=frontend_path)
+        httpd = socketserver.TCPServer(("127.0.0.1", 8080), handler)
+        httpd.allow_reuse_address = True
 
-        # Iniciar o servidor em uma thread separada
-        server_thread = threading.Thread(target=httpd.serve_forever)
-        server_thread.daemon = True
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
         server_thread.start()
 
-        # Navegar para o servidor local
-        webview.create_window('ClawAI', http://localhost:8080)
-        webview.start()
+        try:
+            webview.create_window('ClawAI', 'http://127.0.0.1:8080')
+            webview.start()
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
 
 
 def create_application() -> "Application":
