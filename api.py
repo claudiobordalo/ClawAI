@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from clawai.api.tools_api import router as tools_router
@@ -76,6 +77,7 @@ async def lifespan(app: FastAPI):
     await monitor.start()
     yield
     await monitor.stop()
+
 
 app = FastAPI(title="ClawAI API", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -267,3 +269,7 @@ def save_file(data: SaveFileRequest):
 
 
 app.include_router(tools_router, prefix="/api")
+
+frontend_dist = ROOT / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
