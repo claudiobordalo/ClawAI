@@ -1,13 +1,20 @@
 {
-  "name": "frontend",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "name": "clawai",
+  "private": false,
+  "version": "0.1.0",
+  "description": "ClawAI - AI Assistant Desktop Application",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"vite\" \"tsc -b --watch\" \"wait-on http://127.0.0.1:5173 && electron .\" -k",
+    "electron:build": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder",
+    "electron:build:win": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --win --x64",
+    "electron:build:win:dir": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --win --x64 --dir",
+    "electron:build:linux": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --linux --x64",
+    "electron:build:mac": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --mac --arm64"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -21,22 +28,71 @@
     "react-dom": "^19.2.7",
     "react-icons": "^5.6.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.18.0",
+    "react-router-dom": "^7.1.8",
     "remark-gfm": "^4.0.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@electron/packager": "^18.3.6",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "concurrently": "^9.2.0",
+    "electron": "^38.2.2",
+    "electron-builder": "^26.0.12",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
     "globals": "^17.6.0",
-    "typescript": "~6.0.2",
+    "typescript": "~5.9.0",
     "typescript-eslint": "^8.61.0",
-    "vite": "^8.1.0"
+    "vite": "^8.1.0",
+    "wait-on": "^9.0.1"
+  },
+  "build": {
+    "appId": "com.clawai.app",
+    "productName": "ClawAI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../clawai",
+        "to": "clawai",
+        "filter": ["**/*"]
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "../pyproject.toml",
+        "to": "pyproject.toml"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ClawAI"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "public/icon.png"
+    }
   }
 }

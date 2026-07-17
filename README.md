@@ -2,7 +2,39 @@
 
 Autonomous coding agent with self-repair, goal-driven planning, and engineering memory.
 
-## Architecture
+## Installation
+
+### Prerequisites
+
+1. **Node.js 18+** — [Download](https://nodejs.org/)
+2. **Python 3.12+** — [Download](https://www.python.org/downloads/)
+   - Install with "Add Python to PATH" checked
+
+### Quick Setup
+
+```powershell
+# Install Python dependencies
+.\setup-python.ps1
+
+# Install Node dependencies
+cd frontend
+npm install
+
+# Run in development mode
+npm run electron:dev
+```
+
+### Build for Production
+
+```powershell
+# Build Windows installer
+cd frontend
+npm run electron:build:win
+
+# Output: release/ClawAI Setup 0.1.0.exe
+```
+
+### Architecture
 
 ```
 clawai/

@@ -1,114 +1,303 @@
-﻿.layout{
-display:grid;
-grid-template-columns:260px 1fr;
-height:100vh;
-background:#0d1117;
+/* ClawAI Studio - Desktop Application Styles */
+
+/* ===== Global Reset ===== */
+*, *::before, *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-.sidebar{
-background:#161b22;
-border-right:1px solid #30363d;
-display:flex;
-flex-direction:column;
+html, body, #root {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-.logo{
-padding:24px;
-font-size:34px;
-font-weight:700;
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
 }
 
-.workspace{
-display:flex;
-flex-direction:column;
-height:100vh;
+::-webkit-scrollbar-track {
+    background: transparent;
 }
 
-.topbar{
-height:60px;
-border-bottom:1px solid #30363d;
-display:flex;
-align-items:center;
-justify-content:space-between;
-padding:0 24px;
-background:#161b22;
+::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
 }
 
-.panels{
-flex:1;
-display:grid;
-grid-template-columns:42% 58%;
-overflow:hidden;
+::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
 }
 
-.chat{
-overflow:auto;
-padding:24px;
-border-right:1px solid #30363d;
+/* ===== Animations ===== */
+@keyframes pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
 }
 
-.editor{
-display:flex;
-flex-direction:column;
-background:#0d1117;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-.editorHeader{
-height:42px;
-display:flex;
-align-items:center;
-padding:0 16px;
-border-bottom:1px solid #30363d;
-background:#161b22;
-color:#8b949e;
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(-12px); }
+    to { opacity: 1; transform: translateX(0); }
 }
 
-.editorBody{
-flex:1;
+@keyframes typing {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
 }
 
-.message{
-max-width:700px;
-padding:18px;
-border-radius:12px;
-background:#1c2128;
-border:1px solid #30363d;
-color:#f0f6fc;
+/* ===== Loading Spinner ===== */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #27272a;
+    border-top-color: #7c3aed;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
 }
 
-.message p{
-margin-top:10px;
-line-height:1.6;
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
 
-.prompt{
-display:flex;
-gap:16px;
-padding:20px;
-border-top:1px solid #30363d;
-background:#161b22;
+/* ===== Tab Active Indicator ===== */
+.tab-active {
+    border-left: 2px solid #7c3aed !important;
+    color: #a78bfa !important;
 }
 
-.MuiInputBase-root{
-background:#1c2128!important;
-color:#f0f6fc!important;
+/* ===== File Tree ===== */
+.tree-node {
+    transition: background 0.1s ease;
+    cursor: pointer;
+    user-select: none;
 }
 
-.MuiInputBase-input::placeholder{
-color:#8b949e!important;
-opacity:1;
+.tree-node:hover {
+    background: #1e1e22;
 }
 
-.MuiOutlinedInput-notchedOutline{
-border-color:#30363d!important;
+/* ===== Chat Messages ===== */
+.chat-message {
+    animation: fadeIn 0.3s ease;
 }
 
-.MuiTypography-root,
-.MuiListItemText-root span,
-.MuiSvgIcon-root{
-color:#f0f6fc!important;
+/* ===== Button Hover ===== */
+.btn-hover {
+    transition: all 0.15s ease;
 }
 
-.MuiDivider-root{
-border-color:#30363d!important;
+.btn-hover:hover {
+    background: #27272a;
+}
+
+/* ===== Card ===== */
+.card {
+    background: #111113;
+    border: 1px solid #1e1e22;
+    border-radius: 12px;
+    transition: border-color 0.15s ease;
+}
+
+.card:hover {
+    border-color: #27272a;
+}
+
+/* ===== Status Badge ===== */
+.status-online {
+    color: #22c55e;
+}
+
+.status-offline {
+    color: #ef4444;
+}
+
+.status-warning {
+    color: #f59e0b;
+}
+
+/* ===== Input Styles ===== */
+.input-dark {
+    background: #1e1e22;
+    border: 1px solid #27272a;
+    color: #fff;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+
+.input-dark:focus {
+    border-color: #7c3aed;
+}
+
+.input-dark::placeholder {
+    color: #52525b;
+}
+
+/* ===== Section Title ===== */
+.section-title {
+    font-size: 11px;
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+/* ===== Empty State ===== */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #52525b;
+    gap: 16px;
+}
+
+/* ===== Switch Toggle ===== */
+.switch {
+    width: 40px;
+    height: 22px;
+    border-radius: 11px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.switch.active {
+    background: #7c3aed;
+}
+
+.switch.inactive {
+    background: #3f3f46;
+}
+
+.switch::after {
+    content: '';
+    width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    transition: right 0.2s ease;
+}
+
+.switch.active::after {
+    right: 2px;
+}
+
+.switch.inactive::after {
+    right: calc(100% - 20px);
+}
+
+/* ===== Monitor Cards ===== */
+.monitor-card {
+    background: #111113;
+    border: 1px solid #1e1e22;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.monitor-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.monitor-label {
+    font-size: 12px;
+    color: #71717a;
+}
+
+/* ===== Progress Bar ===== */
+.progress-bar {
+    height: 6px;
+    background: #1e1e22;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+
+/* ===== Terminal ===== */
+.terminal {
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+/* ===== Editor ===== */
+.editor-font {
+    font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', monospace;
+    font-size: 14px;
+    line-height: 22px;
+    tab-size: 4;
+}
+
+/* ===== Settings ===== */
+.setting-group {
+    background: #111113;
+    border: 1px solid #1e1e22;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #1e1e22;
+}
+
+.setting-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.setting-row:first-child {
+    padding-top: 0;
+}
+
+/* ===== Model Card ===== */
+.model-card {
+    background: #111113;
+    border: 1px solid #1e1e22;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: border-color 0.15s ease;
+}
+
+.model-card:hover {
+    border-color: #27272a;
+}
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 0 !important;
+        overflow: hidden;
+    }
 }
