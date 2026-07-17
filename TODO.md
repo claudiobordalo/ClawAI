@@ -1,4 +1,4 @@
 - [x] Investigar e corrigir erro provável no `clawai/agent/agent_loop.py` relacionado a `max_iterations` inexistente em `AgentConfiguration`.
 - [x] Rodar testes unitários relevantes (`tests/unit/test_agent.py`).
 - [x] Rodar suíte completa (`pytest -q`) — 701 tests passaram, mas houve `PermissionError` no teardown do pytest (Windows) em `pytest-current`.
-- [ ] Tratar falha/exception no teardown do pytest no Windows por `PermissionError` em `pytest-current` (não é erro do código, mas do ambiente/limpeza de diretórios temporários do pytest).
+
