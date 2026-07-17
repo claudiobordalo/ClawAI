@@ -116,10 +116,13 @@ class AgentLoop(AbstractAgentLoop):
             if not backlog.goals:
                 session.state = ExecutionState.COMPLETED
                 session.finished_at = datetime.now(timezone.utc)
-                bus.emit(SESSION_FINISHED, session_id, state="completed")
+                bus.emit(SESSION_FINISHED, session_id, state="completed", duration=0)
                 return session
 
-            max_iter = self._context.config.max_iterations
+            # AgentConfiguration não define max_iterations; usa max_goals para controlar iterações do loop externo.
+            max_iter = self._context.config.max_goals if self._context.config.max_goals > 0 else len(backlog.goals)
+
+
             for goal in backlog.goals:
                 if self._iteration_count >= max_iter:
                     logger.warning(
@@ -193,11 +196,13 @@ class AgentLoop(AbstractAgentLoop):
                         goal_count=len(backlog.goals),
                     )
 
-            if not self._cancelled:
+            if not self._cancelled and session.state != ExecutionState.FAILED:
                 session.state = ExecutionState.COMPLETED
         except Exception as e:
             logger.error("Agent loop failed", extra={"error": str(e)})
+            session.metadata["error"] = str(e)
             session.state = ExecutionState.FAILED
+
 
         session.finished_at = datetime.now(timezone.utc)
         bus.emit(
@@ -292,10 +297,12 @@ class AgentLoop(AbstractAgentLoop):
             if self._cancelled:
                 return None
             
-            # Check global iteration limit
-            if self._context.config.max_iterations > 0 and self._iteration_count >= self._context.config.max_iterations:
+            # Check global iteration limit (AgentConfiguration doesn't define max_iterations)
+            max_global_iterations = getattr(self._context.config, "max_iterations", 0)
+            if max_global_iterations > 0 and self._iteration_count >= max_global_iterations:
                 logger.warning("Global max iterations reached in goal execution")
                 break
+
 
             try:
                 exec_result = attempt_execution()

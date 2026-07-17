@@ -226,7 +226,17 @@ async def chat_image(prompt: str = Form(...), image: UploadFile = File(...)):
     temp.mkdir(parents=True, exist_ok=True)
     target = temp / Path(image.filename or "image.bin").name
     target.write_bytes(await image.read())
-    return _payload(chat.ask(prompt=prompt, file=str(target)))
+    try:
+        return _payload(chat.ask(prompt=prompt, file=str(target)))
+    finally:
+        # Evita lixo no workspace durante verificação/uso automatizado
+        try:
+            target.unlink(missing_ok=True)  # py3.8+
+        except Exception:
+            pass
+
+
+
 
 
 @app.post("/api/chat/file")
