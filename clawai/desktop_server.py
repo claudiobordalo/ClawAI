@@ -7,6 +7,9 @@ Este módulo:
 3. Monta os arquivos estáticos do frontend (frontend/dist)
 4. Inicia o PyWebView com a URL do servidor local
 5. Detecta automaticamente modelos (LM Studio / Ollama / OpenAI)
+
+Integração com main.py:
+    Quando CLAWAI_MODE=desktop (padrão), main.py chama start_desktop().
 """
 
 import asyncio
@@ -17,7 +20,6 @@ import socket
 import sys
 import threading
 import time
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
@@ -27,36 +29,67 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-# Importar o app existente
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from api import app as backend_app
-
 logger = logging.getLogger("clawai.desktop")
 
+
 # ──────────────────────────────────────────────
-# Paths
+# Paths — works in both dev and PyInstaller bundle modes
 # ──────────────────────────────────────────────
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent  # project root (dev mode)
 
-def _get_bundle_temp_dir() -> Optional[Path]:
-    """Get the temp directory where PyInstaller extracts bundled files."""
+
+def _get_bundle_dir() -> Optional[Path]:
+    """Return the temp directory where PyInstaller extracts bundled files, or None."""
     if getattr(sys, "frozen", False):
-        return Path(getattr(sys, "_MEIPASS", ""))
+        mea_path = getattr(sys, "_MEIPASS", "")
+        if mea_path:
+            return Path(mea_path)
     return None
 
-BUNDLE_DIR = _get_bundle_temp_dir()
-DIST_DIR = (BUNDLE_DIR / "frontend" / "dist") if BUNDLE_DIR else BASE_DIR / "frontend" / "dist"
+
+BUNDLE_DIR = _get_bundle_dir()
+
+# In dev mode the frontend dist lives at <project_root>/frontend/dist.
+# In bundle mode it should be served from the spec file's datas mapping,
+# which places files under "frontend/dist" inside MEIPASS.
+DIST_DIR: Path | None = (BUNDLE_DIR / "frontend" / "dist") if BUNDLE_DIR else BASE_DIR / "frontend" / "dist"
+
+
+def _ensure_dist_dir() -> Optional[Path]:
+    """Return DIST_DIR resolved at runtime, or re-check after a dev build."""
+    global DIST_DIR  # noqa: PLW0603
+
+    if DIST_DIR is not None and DIST_DIR.exists():
+        return DIST_DIR
+
+    # In bundle mode the dist may have been placed by PyInstaller under
+    # MEIPASS/frontend/dist — try that path.
+    bd = _get_bundle_dir()
+    if bd:
+        candidate = bd / "frontend" / "dist"
+        if candidate.exists():
+            DIST_DIR = candidate  # type: ignore[assignment]
+            return DIST_DIR
+
+    # In dev mode, check the project root again (in case frontend was built).
+    fallback = BASE_DIR / "frontend" / "dist"
+    if fallback.exists():
+        DIST_DIR = fallback
+        return DIST_DIR
+
+    logger.warning("No dist directory found — serving will fall back to index.html")
+    # Return a non-existent path so the caller can build it.
+    return BASE_DIR / "frontend" / "dist"
 
 
 # ──────────────────────────────────────────────
-# Model auto-detection
+# Model auto-detection  (LM Studio, Ollama)
 # ──────────────────────────────────────────────
-
 
 async def _detect_lm_studio_models() -> list[dict]:
-    """Detect models loaded in LM Studio (default http://127.0.0.1:1234)."""
-    models = []
+    """Detect models loaded in LM Studio."""
+    models: list[dict] = []
     async with httpx.AsyncClient(timeout=3.0) as client:
         try:
             resp = await client.get("http://127.0.0.1:1234/v1/models")
@@ -66,59 +99,62 @@ async def _detect_lm_studio_models() -> list[dict]:
                     models.append({
                         "id": m.get("id", ""),
                         "source": "lm_studio",
-                        "name": m.get("id", "").split("/")[-1] if "/" in m.get("id", "") else m.get("id", ""),
+                        "name": (m.get("id", "").split("/")[-1] if "/" in str(m.get("id", "")) else m.get("id", "")),
                     })
-        except Exception:
+        except Exception:  # noqa: PERF203
             pass
     return models
 
 
 async def _detect_ollama_models() -> list[dict]:
     """Detect models available in Ollama."""
-    models = []
+    models: list[dict] = []
     async with httpx.AsyncClient(timeout=3.0) as client:
         try:
             resp = await client.get("http://127.0.0.1:11434/api/tags")
             if resp.status_code == 200:
                 data = resp.json()
-                for m in data.get("models", []):
+                for m in (data.get("models") or []):
+                    details = m.get("details", {}) or {}
                     models.append({
                         "id": m.get("name", ""),
                         "source": "ollama",
-                        "name": m.get("name", "").split("/")[-1] if "/" in m.get("name", "") else m.get("name", ""),
+                        "name": (m.get("name", "").split("/")[-1] if "/" in str(m.get("name", "")) else m.get("name", "")),
                         "size": m.get("size", 0),
                         "details": {
-                            "format": m.get("details", {}).get("format", ""),
-                            "family": m.get("details", {}).get("family", ""),
-                            "parameter_size": m.get("details", {}).get("parameter_size", ""),
-                            "quantization_level": m.get("details", {}).get("quantization_level", ""),
+                            "format": details.get("format", ""),
+                            "family": details.get("family", ""),
+                            "parameter_size": details.get("parameter_size", ""),
+                            "quantization_level": details.get("quantization_level", ""),
                         },
                     })
-        except Exception:
+        except Exception:  # noqa: PERF203
             pass
     return models
 
 
 async def detect_available_models() -> dict:
     """Detect all available LLM backends and their models."""
-    lm_studio_models = await _detect_lm_studio_models()
-    ollama_models = await _detect_ollama_models()
+    lm_studio, ollama = await asyncio.gather(
+        _detect_lm_studio_models(),
+        _detect_ollama_models(),
+    )
 
     return {
         "lm_studio": {
-            "available": len(lm_studio_models) > 0,
+            "available": len(lm_studio) > 0,
             "url": "http://127.0.0.1:1234",
-            "models": lm_studio_models,
+            "models": lm_studio,
         },
         "ollama": {
-            "available": len(ollama_models) > 0,
+            "available": len(ollama) > 0,
             "url": "http://127.0.0.1:11434",
-            "models": ollama_models,
+            "models": ollama,
         },
         "openai": {
             "available": bool(os.environ.get("OPENAI_API_KEY")),
             "url": "https://api.openai.com/v1",
-            "models": [],
+            "models": [],  # list_models() would require a key + request.
         },
     }
 
@@ -129,39 +165,45 @@ async def get_system_metrics() -> dict:
 
     cpu_percent = psutil.cpu_percent(interval=0.1)
     memory = psutil.virtual_memory()
-    disk = psutil.disk_usage("/")
 
-    # GPU info via pynvml if available
-    gpu_info = None
+    # Use the system root for disk usage (works on both Windows and POSIX).
+    try:
+        import os as _os  # noqa: TID251 — lazy-import to avoid hard dep.
+        drive_root = _os.path.dirname(_os.getcwd()) or "/"
+        disk_usage = psutil.disk_usage(drive_root)
+    except Exception:
+        disk_usage = None
+
+    gpu_info: list[dict] | None = []
     try:
         from pynvml import (
             nvmlDeviceGetCount,
             nvmlDeviceGetHandleByIndex,
             nvmlDeviceGetMemoryInfo,
             nvmlDeviceGetUtilizationRates,
-            nvmlInit,
-        )
-        nvmlInit()
-        count = nvmlDeviceGetCount()
-        gpus = []
-        for i in range(count):
-            handle = nvmlDeviceGetHandleByIndex(i)
-            mem = nvmlDeviceGetMemoryInfo(handle)
-            util = nvmlDeviceGetUtilizationRates(handle)
-            gpus.append({
-                "index": i,
-                "name": "NVIDIA GPU",
-                "total_memory": mem.total,
-                "used_memory": mem.used,
-                "free_memory": mem.free,
-                "gpu_util": util.gpu,
-                "memory_util": util.memory,
-            })
-        gpu_info = gpus
+            nvmlInit as _nvml_init,
+        )  # noqa: TID251
     except ImportError:
-        pass
-    except Exception:
-        pass
+        gpu_info = None
+    else:
+        try:
+            _nvml_init()
+            count = nvmlDeviceGetCount()
+            for i in range(count):
+                handle = nvmlDeviceGetHandleByIndex(i)
+                mem = nvmlDeviceGetMemoryInfo(handle)
+                util = nvmlDeviceGetUtilizationRates(handle)
+                gpu_info.append({
+                    "index": i,
+                    "name": "NVIDIA GPU",
+                    "total_memory": mem.total,
+                    "used_memory": mem.used,
+                    "free_memory": mem.free,
+                    "gpu_util": util.gpu,
+                    "memory_util": util.memory,
+                })
+        except Exception:
+            gpu_info = None
 
     return {
         "cpu_percent": cpu_percent,
@@ -171,22 +213,21 @@ async def get_system_metrics() -> dict:
             "available": memory.available,
             "percent": memory.percent,
         },
-        "disk": {
-            "total": disk.total,
-            "used": disk.used,
-            "free": disk.free,
-            "percent": disk.percent,
-        },
-        "gpu": gpu_info,
+        "disk": (
+            {"total": disk_usage.total, "used": disk_usage.used,
+             "free": disk_usage.free, "percent": round(disk_usage.percent / 100.0, 4)}
+            if disk_usage
+            else {"total": 0, "used": 0, "free": 0, "percent": None}
+        ),
+        "gpu": gpu_info or [],
         "python_version": platform.python_version(),
         "platform": platform.platform(),
     }
 
 
 # ──────────────────────────────────────────────
-# Desktop app wrapper
+# Desktop app wrapper (FastAPI)
 # ──────────────────────────────────────────────
-
 
 def create_desktop_app() -> FastAPI:
     """Create a FastAPI app that wraps the existing backend + serves frontend."""
@@ -195,7 +236,7 @@ def create_desktop_app() -> FastAPI:
         version="1.0.0",
     )
 
-    # CORS
+    # CORS — only needed for local-to-local calls, but keep it open for safety during dev.
     desktop_app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -204,71 +245,124 @@ def create_desktop_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Mount existing backend app
-    desktop_app.mount("/api", backend_app, name="backend")
+    # Include all backend API routers (same as server.py does).
+    from clawai.api.tools_api import router as tools_router       # noqa: E402
+    from clawai.api.bridge_api import router as bridge_router      # noqa: E402
+    from clawai.api.chat_api import router as chat_router          # noqa: E402
+    from clawai.api.autonomy_api import router as autonomy_router  # noqa: E402
+    from clawai.api.intelligence_api import router as intelligence_router  # noqa: E402
+    from clawai.api.implement_api import router as implement_router   # noqa: E402
+    from clawai.api.workspaces_api import router as workspaces_router  # noqa: E402
+    from clawai.api.evolution_api import router as evolution_router  # noqa: E402
+    desktop_app.include_router(tools_router, prefix="/api")
+    desktop_app.include_router(bridge_router, prefix="/api")
+    desktop_app.include_router(chat_router, prefix="/api")
+    desktop_app.include_router(autonomy_router, prefix="/api")
+    desktop_app.include_router(intelligence_router, prefix="/api")
+    desktop_app.include_router(implement_router, prefix="/api")
+    desktop_app.include_router(workspaces_router, prefix="/api")
+    desktop_app.include_router(evolution_router, prefix="/api")
 
-    # Desktop-specific endpoints
     @desktop_app.get("/api/desktop/models")
-    async def _desktop_models():
+    async def _desk_models():
         return await detect_available_models()
 
     @desktop_app.get("/api/desktop/metrics")
-    async def _desktop_metrics():
+    async def _desk_metrics():
         return await get_system_metrics()
 
     @desktop_app.get("/api/desktop/info")
-    async def _desktop_info():
+    async def _desk_info():
+        resolved = _ensure_dist_dir() or BASE_DIR / "frontend" / "dist"  # type: ignore[arg-type]
         return {
             "version": "1.0.0",
             "platform": platform.platform(),
             "python_version": platform.python_version(),
-            "base_dir": str(BASE_DIR),
-            "dist_dir": str(DIST_DIR),
-            "dist_exists": DIST_DIR.exists(),
             "bundled": BUNDLE_DIR is not None,
+            "bundle_dir": str(BUNDLE_DIR) if BUNDLE_DIR else None,
         }
 
-    # Serve frontend static files
-    if DIST_DIR.exists():
-        assets_dir = DIST_DIR / "assets"
+    # Serve frontend static files (if available).
+    dist = _ensure_dist_dir()  # type: ignore[arg-type]
+    if dist and dist.exists():
+        assets_dir = dist / "assets"
         if assets_dir.exists():
             desktop_app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
 
     @desktop_app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str):
+    async def serve_frontend(full_path: str):  # noqa: C901, PLR0912
         """Serve the React SPA. All routes fallback to index.html."""
         if full_path == "" or full_path == "index.html":
-            return FileResponse(str(DIST_DIR / "index.html"))
+            return FileResponse(str(dist / "index.html"))
 
-        file_path = DIST_DIR / full_path
-        if file_path.exists() and file_path.is_file():
-            return FileResponse(str(file_path))
+        file_path = dist / full_path.replace("\\", "/")  # normalise Windows paths
 
-        # SPA fallback
-        return FileResponse(str(DIST_DIR / "index.html"))
+        # Prevent path traversal attacks.
+        try:
+            resolved = file_path.resolve()
+            if not str(resolved).startswith(str(dist.resolve())):
+                raise HTTPException(status_code=403, detail="Forbidden")
+        except Exception as e:
+            logger.warning("serve_frontend — invalid path %s", full_path)
+
+        # If the exact file exists and is a regular file → serve it.
+        if resolved.is_file():
+            return FileResponse(str(resolved))
+
+        # Check if we should treat this as an extensionless static asset (e.g., /api/xxx).
+        for ext in ("", ".html", ".js", ".css"):
+            candidate = dist / f"{full_path}{ext}"
+            try:
+                r2 = candidate.resolve()
+            except Exception:  # noqa: PERF203
+                continue
+            if not str(r2).startswith(str(dist.resolve())):
+                raise HTTPException(status_code=403, detail="Forbidden")
+
+            if r2.is_file():
+                return FileResponse(str(r2))
+        else:
+            pass  # SPA fallback below.
+
+        # If the path looks like a file (has an extension) → serve index.html as fallback anyway? No — try static assets first.
+        if "." in full_path or "/" not in full_path.replace("_", "/"):
+            for candidate_file, mime_type in [
+                ("index.js", "application/javascript"),
+                ("main.css", "text/css"),
+                ("favicon.ico", "image/x-icon"),
+            ]:
+                c = dist / candidate_file
+                try:
+                    if c.resolve().is_file():
+                        return FileResponse(str(c), media_type=mime_type)  # type: ignore[arg-type]
+                except Exception:
+                    continue
+
+        # SPA fallback → serve index.html for any route that doesn't match a file.
+        return FileResponse(dist / "index.html")
 
     return desktop_app
 
 
 # ──────────────────────────────────────────────
-# PyWebView integration
+# PyWebView integration  (window + tray icon)
 # ──────────────────────────────────────────────
 
 
 def _get_port() -> int:
-    """Find an available port starting from 8000."""
-    for port in range(8000, 8100):
+    """Find an available TCP port in [8000, 8100)."""
+    for port in range(8000, 8200):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
                 s.bind(("127.0.0.1", port))
                 return port
-            except OSError:
+            except OSError:  # noqa: PERF203
                 continue
     return 8000
 
 
 def _run_server(port: int):
-    """Run the FastAPI server in a thread."""
+    """Run the FastAPI server in a background thread."""
     import uvicorn
 
     config = uvicorn.Config(
@@ -283,66 +377,78 @@ def _run_server(port: int):
 
 
 def _build_frontend_if_needed():
-    """Build the frontend if it hasn't been built yet."""
-    if not DIST_DIR.exists():
-        logger.info("Building frontend...")
-        try:
-            import subprocess
-            result = subprocess.run(
-                ["npm", "run", "build"],
-                cwd=str(BASE_DIR / "frontend"),
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-            if result.returncode != 0:
-                logger.error(f"Frontend build failed: {result.stderr[:300]}")
-                return False
-            logger.info("Frontend built successfully.")
-            return True
-        except subprocess.TimeoutExpired:
-            logger.error("Frontend build timed out.")
+    """Build the frontend if it hasn't been built yet (dev mode only)."""
+    dist_path = BASE_DIR / "frontend" / "dist"  # type: ignore[name-defined]
+
+    if dist_path.exists():
+        return True
+
+    logger.info("Building frontend...")
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["npm", "run", "build"],
+            cwd=str(BASE_DIR),  # type: ignore[arg-type, name-defined]
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env={**os.environ.copy(), "BROWSER": "none"},
+        )
+
+        if result.returncode != 0:
+            logger.error("Frontend build failed: %s", result.stderr[:500])
             return False
-        except Exception as e:
-            logger.error(f"Frontend build error: {e}")
-            return False
-    return True
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        logger.error("Frontend build error: %s", exc)
+        return False
+
+    if dist_path.exists():  # type: ignore[name-defined]
+        logger.info("Frontend built successfully.")
+        return True
+
+    logger.warning("npm run build completed but dist/ not found")
+    return False
 
 
-def start_desktop():
-    """Start the ClawAI desktop application with PyWebView."""
-    import webview
 
-    # Ensure frontend is built (only if not bundled)
-    if not BUNDLE_DIR and not _build_frontend_if_needed():
+
+
+def start_desktop():  # noqa: C901, PLR0915 — intentionally long; desktop bootstrap.
+    """Start the ClawAI Desktop application (FastAPI + PyWebView)."""
+    import webview   # type: ignore[import-not-found]
+
+    logger.info("ClawAI Studio starting…")
+
+    # ── Ensure frontend is built ────────────────
+    if not BUNDLE_DIR and not _build_frontend_if_needed():  # noqa: F821 — will be defined at import time.
         logger.error("Cannot start desktop: frontend build failed.")
         sys.exit(1)
 
     port = _get_port()
-    logger.info(f"Starting server on port {port}...")
+    url = f"http://127.0.0.1:{port}"
+    logger.info(f"Starting FastAPI server on {url}…")
 
-    # Start server in a separate thread
-    server_thread = threading.Thread(
-        target=_run_server,
-        args=(port,),
-        daemon=True,
-    )
+    # ── Start the server thread ────────────────
+    server_thread = threading.Thread(target=_run_server, args=(port,), daemon=True)  # noqa: F821 — _run_server defined above.
     server_thread.start()
 
-    # Wait for server to be ready
-    url = f"http://127.0.0.1:{port}"
-    for _ in range(40):
-        try:
-            with httpx.Client(timeout=1.0) as client:
-                client.get(url)
-                break
-        except Exception:
+    # Wait for server to be ready (up to ~20 s).
+    with httpx.Client(timeout=5.0) as client:
+        for i in range(40):   # 40 × 0.5s = 20 s timeout
+            try:
+                resp = client.get(url, follow_redirects=False)
+                if resp.status_code == 307 or resp.is_success:    # noqa: SIM118 — accept redirects as "ready".
+                    break
+            except Exception:   # type: ignore[catch-all]
+                pass
             time.sleep(0.5)
-    else:
-        logger.error("Server failed to start within timeout")
-        sys.exit(1)
 
-    logger.info("Server ready. Starting PyWebView window...")
+        else:
+            logger.error("Server failed to start within timeout.")
+            sys.exit(1)
+
+    logger.info(f"Server ready. Starting PyWebView on {url}…")
 
     webview.create_window(
         "ClawAI Studio",
@@ -355,12 +461,12 @@ def start_desktop():
         js_api=None,
     )
 
-    webview.start()
+    webview.start()   # blocks until the user closes the window / quits from tray.
 
 
 # ──────────────────────────────────────────────
-# Entry point
+# Entry point (for standalone `python desktop_server.py`)
 # ──────────────────────────────────────────────
 
 if __name__ == "__main__":
-    start_desktop()
+    start_desktop()   # type: ignore[no-untyped-call] — intentionally callable at runtime.

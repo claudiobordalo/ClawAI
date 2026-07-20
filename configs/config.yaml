@@ -1,35 +1,52 @@
-application:
-  name: ClawAI
-  version: 0.1.0
-  debug: false
+---
+# Main application configuration file for ClawAI
 
+application:
+  name: "ClawAI"
+  version: "0.1.0" 
+  debug: false
+  
 paths:
-  logs: data/logs
-  memory: data/memory
-  projects: data/projects
+  logs: "./data/logs"
+  memory: "./data/memory"
+  projects: "./data/projects"
 
 ollama:
-  host: http://localhost:11434
-
+  host: "http://localhost:11434"
+  
 models:
-  default: qwen2.5-coder:14b
-  planner: qwen3:8b
-  coder: qwen2.5-coder:14b
-  reviewer: deepseek-r1:8b
-  vision: qwen2.5vl:7b
-  embedding: nomic-embed-text
+  # Default model for general tasks
+  default: "qwen2.5-coder:14b" 
+  # Planner model (for planning and complex reasoning)
+  planner: "qwen3:8b" 
+  # Coder model (for code generation)  
+  coder: "qwen2.5-coder:14b"
+  # Reviewer model (for reviewing/analyzing code) 
+  reviewer: "deepseek-r1:8b"
+  # Vision-capable model
+  vision: "qwen2.5vl:7b"   
+  # Embedding model for semantic search  
+  embedding: "nomic-embed-text"
 
 resources:
   cpu_busy_percent: 85
-  ram_busy_percent: 85
+  ram_busy_percent: 85 
   disk_busy_percent: 95
   critical_processes:
-    - gta5.exe
-    - dofus.exe
-    - ankama launcher.exe
-    - blender.exe
-    - unrealeditor.exe
-    - unity.exe
-    - cl.exe
-    - msbuild.exe
-    - ninja.exe
+    - "gta5.exe"
+    - "dofus.exe"  
+    - "ankama launcher.exe"
+    - "blender.exe"
+    - "unrealeditor.exe"
+    - "unity.exe"
+    - "cl.exe"
+    - "msbuild.exe" 
+    - "ninja.exe"
+
+# LM Studio integration (if enabled)
+lmstudio:
+  base_url: "http://localhost:1234/v1"
+  default_model: ""
+  
+openai:
+  api_key_env_var: "" # Name of environment variable containing the key

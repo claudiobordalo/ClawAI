@@ -1,0 +1,5 @@
+clawai.ai contents: ['AIRouter', 'Model', 'ModelRole', 'ModelRouter', '__all__', '__builtins__', '__cached__', '__doc__', '__file__', '__loader__', '__name__', '__package__', '__path__', '__spec__', 'router']
+
+Files in clawai/ai/: ['__init__.py', '__pycache__', 'router.py']
+
+Files in clawai/providers/: ['__init__.py', '__pycache__', 'base', 'factory', 'implementations', 'manager', 'ollama_provider.py']

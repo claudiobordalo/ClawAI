@@ -19,4 +19,5 @@
 - [x] **EVO-27**: Corrigir contagem de iterações no `ClawAI.exe` (agora respeita o limite configurado).
 - [x] **EVO-28**: Corrigir `ImportError` ao iniciar `ClawAI.exe` (adicionada função `create_application` faltante).
 - [x] **EVO-29**: Implementar método `start` na classe `Application` para abrir a janela nativa (PyWebView).
+- [x] **EVO-30**: Criar módulo `clawai/verification/_verify_entry.py` — ponto de entrada para verificação do projeto.
 - [ ] **EVO-24**: Implementar Feedback Loop (verificação pós-execução e ajuste de parâmetros).

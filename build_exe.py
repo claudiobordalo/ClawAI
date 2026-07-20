@@ -23,7 +23,8 @@ ROOT = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT / "frontend"
 DIST_DIR = FRONTEND_DIR / "dist"
 CLAWAI_DIR = ROOT / "clawai"
-PYINSTALLER_SPEC = ROOT / "ClawAI.spec"
+PYINSTALLER_SPEC = ROOT / "ClawAI.spec"  # Primary spec file (single-dir build)
+SINGLEFILE_EXE_NAME = "ClawAI.exe"       # single-file output name
 
 
 def check_prerequisites():
@@ -110,7 +111,7 @@ def install_dependencies():
 
 
 def run_pyinstaller(single_file: bool = True):
-    """Run PyInstaller to create the executable."""
+    """Run PyInstaller using the spec file to create the executable."""
     print("\n[3/4] Running PyInstaller...")
 
     # Clean previous build
@@ -118,67 +119,43 @@ def run_pyinstaller(single_file: bool = True):
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
 
-    # Build command
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--clean",
         "--noconfirm",
-        "--name", "ClawAI",
     ]
 
     if single_file:
-        cmd.append("--onefile")
-        output_name = "ClawAI.exe"
-    else:
-        cmd.append("--onedir")
-        output_name = "ClawAI"
+        cmd.append("--onefile")  # spec file has EXE with console=False already.
 
-    cmd.append("--windowed")
-    cmd.append("--icon=frontend/public/icon.ico")  # Optional icon
-
-    # Add data files
-    if DIST_DIR.exists():
-        cmd.extend(["--add-data", f"{DIST_DIR}{os.pathsep}frontend/dist"])
-    cmd.extend(["--add-data", f"{CLAWAI_DIR}{os.pathsep}clawai"])
-    cmd.extend(["--add-data", f"{ROOT / 'configs'}{os.pathsep}configs"])
-    cmd.extend(["--add-data", f"{ROOT / 'database'}{os.pathsep}database"])
-
-    # Hidden imports
-    for mod in [
-        "uvicorn", "fastapi", "httpx", "psutil",
-        "webview", "clawai.main", "clawai.server",
-        "clawai.bootstrap", "clawai.desktop_server",
-    ]:
-        cmd.extend(["--hidden-import", mod])
-
-    # Exclusions
-    for mod in ["tkinter", "pytest", "sphinx", "jupyter", "IPython"]:
-        cmd.extend(["--exclude-module", mod])
-
-    # Entry point
-    cmd.append(str(ROOT / "main.py"))
+    # Use the .spec file as primary build definition (data, hidden imports,
+    # excludes are all defined there).
+    cmd.append(str(PYINSTALLER_SPEC))
 
     print(f"  Command: {' '.join(cmd[:5])} ...")
 
-    result = subprocess.run(cmd, cwd=str(ROOT), timeout=300)
+    result = subprocess.run(
+        cmd, cwd=str(ROOT), timeout=600,
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
 
     if result.returncode != 0:
         print("❌ PyInstaller failed")
         return None
 
-    # Find the output
-    output = dist_dir / output_name
-    if single_file:
-        return output
-    else:
-        return output / "ClawAI.exe"
+    # Find the output — single-dir mode puts it under dist/ClawAI/
+    output = dist_dir / SINGLEFILE_EXE_NAME
+    return output
 
 
 def create_installer(output_exe: Path):
     """Create a simple installer wrapper if needed."""
     print("\n[4/4] Finalizing...")
 
-    if not output_exe.exists():
+    # Also check single-dir layout (dist/ClawAI.exe won't exist, but dist/ClawAI/
+    # will).
+    alt_exe = output_exe.parent / "ClawAI"  # fallback for --onedir build.
+    if not output_exe.exists() and not alt_exe.exists():
         print("❌ Output not found")
         return False
 

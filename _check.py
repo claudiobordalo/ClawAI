@@ -1,7 +1,6 @@
-import sys
-sys.path.insert(0, r'D:\ClawAI')
+import py_compile, sys
 try:
-    import clawai
-    print("OK - clawai imported successfully")
-except Exception as e:
-    print(f"FAIL - {type(e).__name__}: {e}")
+    py_compile.compile(sys.argv[1], doraise=True)
+    print("OK")
+except py_compile.PyCompileError as e:
+    print(f"ERROR: {e}")

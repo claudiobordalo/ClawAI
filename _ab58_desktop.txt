@@ -1,0 +1,378 @@
+commit ab58a20c99013244818c812f293d72d06e9f4075
+Author: claudiobordalo <claudio.fgcosta@gmail.com>
+Date:   Fri Jul 17 00:12:15 2026 -0300
+
+    Merge branch 'main' of https://github.com/claudiobordalo/ClawAI
+
+diff --git a/clawai/desktop_server.py b/clawai/desktop_server.py
+new file mode 100644
+index 0000000..28cb8f7
+--- /dev/null
++++ b/clawai/desktop_server.py
+@@ -0,0 +1,366 @@
++"""
++desktop_server.py – Servidor FastAPI + PyWebView integrado.
++
++Este módulo:
++1. Importa o app FastAPI existente (api.py)
++2. Adiciona endpoints desktop (modelos, métricas, info)
++3. Monta os arquivos estáticos do frontend (frontend/dist)
++4. Inicia o PyWebView com a URL do servidor local
++5. Detecta automaticamente modelos (LM Studio / Ollama / OpenAI)
++"""
++
++import asyncio
++import logging
++import os
++import platform
++import socket
++import sys
++import threading
++import time
++from contextlib import asynccontextmanager
++from pathlib import Path
++from typing import Optional
++
++import httpx
++from fastapi import FastAPI, HTTPException
++from fastapi.middleware.cors import CORSMiddleware
++from fastapi.responses import FileResponse
++from fastapi.staticfiles import StaticFiles
++
++# Importar o app existente
++sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
++from api import app as backend_app
++
++logger = logging.getLogger("clawai.desktop")
++
++# ──────────────────────────────────────────────
++# Paths
++# ──────────────────────────────────────────────
++
++BASE_DIR = Path(__file__).resolve().parent.parent
++
++def _get_bundle_temp_dir() -> Optional[Path]:
++    """Get the temp directory where PyInstaller extracts bundled files."""
++    if getattr(sys, "frozen", False):
++        return Path(getattr(sys, "_MEIPASS", ""))
++    return None
++
++BUNDLE_DIR = _get_bundle_temp_dir()
++DIST_DIR = (BUNDLE_DIR / "frontend" / "dist") if BUNDLE_DIR else BASE_DIR / "frontend" / "dist"
++
++
++# ──────────────────────────────────────────────
++# Model auto-detection
++# ──────────────────────────────────────────────
++
++
++async def _detect_lm_studio_models() -> list[dict]:
++    """Detect models loaded in LM Studio (default http://127.0.0.1:1234)."""
++    models = []
++    async with httpx.AsyncClient(timeout=3.0) as client:
++        try:
++            resp = await client.get("http://127.0.0.1:1234/v1/models")
++            if resp.status_code == 200:
++                data = resp.json()
++                for m in data.get("data", []):
++                    models.append({
++                        "id": m.get("id", ""),
++                        "source": "lm_studio",
++                        "name": m.get("id", "").split("/")[-1] if "/" in m.get("id", "") else m.get("id", ""),
++                    })
++        except Exception:
++            pass
++    return models
++
++
++async def _detect_ollama_models() -> list[dict]:
++    """Detect models available in Ollama."""
++    models = []
++    async with httpx.AsyncClient(timeout=3.0) as client:
++        try:
++            resp = await client.get("http://127.0.0.1:11434/api/tags")
++            if resp.status_code == 200:
++                data = resp.json()
++                for m in data.get("models", []):
++                    models.append({
++                        "id": m.get("name", ""),
++                        "source": "ollama",
++                        "name": m.get("name", "").split("/")[-1] if "/" in m.get("name", "") else m.get("name", ""),
++                        "size": m.get("size", 0),
++                        "details": {
++                            "format": m.get("details", {}).get("format", ""),
++                            "family": m.get("details", {}).get("family", ""),
++                            "parameter_size": m.get("details", {}).get("parameter_size", ""),
++                            "quantization_level": m.get("details", {}).get("quantization_level", ""),
++                        },
++                    })
++        except Exception:
++            pass
++    return models
++
++
++async def detect_available_models() -> dict:
++    """Detect all available LLM backends and their models."""
++    lm_studio_models = await _detect_lm_studio_models()
++    ollama_models = await _detect_ollama_models()
++
++    return {
++        "lm_studio": {
++            "available": len(lm_studio_models) > 0,
++            "url": "http://127.0.0.1:1234",
++            "models": lm_studio_models,
++        },
++        "ollama": {
++            "available": len(ollama_models) > 0,
++            "url": "http://127.0.0.1:11434",
++            "models": ollama_models,
++        },
++        "openai": {
++            "available": bool(os.environ.get("OPENAI_API_KEY")),
++            "url": "https://api.openai.com/v1",
++            "models": [],
++        },
++    }
++
++
++async def get_system_metrics() -> dict:
++    """Get system resource usage metrics."""
++    import psutil
++
++    cpu_percent = psutil.cpu_percent(interval=0.1)
++    memory = psutil.virtual_memory()
++    disk = psutil.disk_usage("/")
++
++    # GPU info via pynvml if available
++    gpu_info = None
++    try:
++        from pynvml import (
++            nvmlDeviceGetCount,
++            nvmlDeviceGetHandleByIndex,
++            nvmlDeviceGetMemoryInfo,
++            nvmlDeviceGetUtilizationRates,
++            nvmlInit,
++        )
++        nvmlInit()
++        count = nvmlDeviceGetCount()
++        gpus = []
++        for i in range(count):
++            handle = nvmlDeviceGetHandleByIndex(i)
++            mem = nvmlDeviceGetMemoryInfo(handle)
++            util = nvmlDeviceGetUtilizationRates(handle)
++            gpus.append({
++                "index": i,
++                "name": "NVIDIA GPU",
++                "total_memory": mem.total,
++                "used_memory": mem.used,
++                "free_memory": mem.free,
++                "gpu_util": util.gpu,
++                "memory_util": util.memory,
++            })
++        gpu_info = gpus
++    except ImportError:
++        pass
++    except Exception:
++        pass
++
++    return {
++        "cpu_percent": cpu_percent,
++        "memory": {
++            "total": memory.total,
++            "used": memory.used,
++            "available": memory.available,
++            "percent": memory.percent,
++        },
++        "disk": {
++            "total": disk.total,
++            "used": disk.used,
++            "free": disk.free,
++            "percent": disk.percent,
++        },
++        "gpu": gpu_info,
++        "python_version": platform.python_version(),
++        "platform": platform.platform(),
++    }
++
++
++# ──────────────────────────────────────────────
++# Desktop app wrapper
++# ──────────────────────────────────────────────
++
++
++def create_desktop_app() -> FastAPI:
++    """Create a FastAPI app that wraps the existing backend + serves frontend."""
++    desktop_app = FastAPI(
++        title="ClawAI Studio",
++        version="1.0.0",
++    )
++
++    # CORS
++    desktop_app.add_middleware(
++        CORSMiddleware,
++        allow_origins=["*"],
++        allow_credentials=True,
++        allow_methods=["*"],
++        allow_headers=["*"],
++    )
++
++    # Mount existing backend app
++    desktop_app.mount("/api", backend_app, name="backend")
++
++    # Desktop-specific endpoints
++    @desktop_app.get("/api/desktop/models")
++    async def _desktop_models():
++        return await detect_available_models()
++
++    @desktop_app.get("/api/desktop/metrics")
++    async def _desktop_metrics():
++        return await get_system_metrics()
++
++    @desktop_app.get("/api/desktop/info")
++    async def _desktop_info():
++        return {
++            "version": "1.0.0",
++            "platform": platform.platform(),
++            "python_version": platform.python_version(),
++            "base_dir": str(BASE_DIR),
++            "dist_dir": str(DIST_DIR),
++            "dist_exists": DIST_DIR.exists(),
++            "bundled": BUNDLE_DIR is not None,
++        }
++
++    # Serve frontend static files
++    if DIST_DIR.exists():
++        assets_dir = DIST_DIR / "assets"
++        if assets_dir.exists():
++            desktop_app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
++
++    @desktop_app.get("/{full_path:path}")
++    async def serve_frontend(full_path: str):
++        """Serve the React SPA. All routes fallback to index.html."""
++        if full_path == "" or full_path == "index.html":
++            return FileResponse(str(DIST_DIR / "index.html"))
++
++        file_path = DIST_DIR / full_path
++        if file_path.exists() and file_path.is_file():
++            return FileResponse(str(file_path))
++
++        # SPA fallback
++        return FileResponse(str(DIST_DIR / "index.html"))
++
++    return desktop_app
++
++
++# ──────────────────────────────────────────────
++# PyWebView integration
++# ──────────────────────────────────────────────
++
++
++def _get_port() -> int:
++    """Find an available port starting from 8000."""
++    for port in range(8000, 8100):
++        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
++            try:
++                s.bind(("127.0.0.1", port))
++                return port
++            except OSError:
++                continue
++    return 8000
++
++
++def _run_server(port: int):
++    """Run the FastAPI server in a thread."""
++    import uvicorn
++
++    config = uvicorn.Config(
++        create_desktop_app(),
++        host="127.0.0.1",
++        port=port,
++        log_level="warning",
++        access_log=False,
++    )
++    server = uvicorn.Server(config)
++    server.run()
++
++
++def _build_frontend_if_needed():
++    """Build the frontend if it hasn't been built yet."""
++    if not DIST_DIR.exists():
++        logger.info("Building frontend...")
++        try:
++            import subprocess
++            result = subprocess.run(
++                ["npm", "run", "build"],
++                cwd=str(BASE_DIR / "frontend"),
++                capture_output=True,
++                text=True,
++                timeout=120,
++            )
++            if result.returncode != 0:
++                logger.error(f"Frontend build failed: {result.stderr[:300]}")
++                return False
++            logger.info("Frontend built successfully.")
++            return True
++        except subprocess.TimeoutExpired:
++            logger.error("Frontend build timed out.")
++            return False
++        except Exception as e:
++            logger.error(f"Frontend build error: {e}")
++            return False
++    return True
++
++
++def start_desktop():
++    """Start the ClawAI desktop application with PyWebView."""
++    import webview
++
++    # Ensure frontend is built (only if not bundled)
++    if not BUNDLE_DIR and not _build_frontend_if_needed():
++        logger.error("Cannot start desktop: frontend build failed.")
++        sys.exit(1)
++
++    port = _get_port()
++    logger.info(f"Starting server on port {port}...")
++
++    # Start server in a separate thread
++    server_thread = threading.Thread(
++        target=_run_server,
++        args=(port,),
++        daemon=True,
++    )
++    server_thread.start()
++
++    # Wait for server to be ready
++    url = f"http://127.0.0.1:{port}"
++    for _ in range(40):
++        try:
++            with httpx.Client(timeout=1.0) as client:
++                client.get(url)
++                break
++        except Exception:
++            time.sleep(0.5)
++    else:
++        logger.error("Server failed to start within timeout")
++        sys.exit(1)
++
++    logger.info("Server ready. Starting PyWebView window...")
++
++    webview.create_window(
++        "ClawAI Studio",
++        url=url,
++        width=1440,
++        height=900,
++        min_size=(1024, 700),
++        resizable=True,
++        fullscreen=False,
++        js_api=None,
++    )
++
++    webview.start()
++
++
++# ──────────────────────────────────────────────
++# Entry point
++# ──────────────────────────────────────────────
++
++if __name__ == "__main__":
++    start_desktop()

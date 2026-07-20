@@ -1,0 +1,4 @@
+returncode=128
+stderr=fatal: '15:clawai/desktop_server.py': not an integer
+
+outlen=0

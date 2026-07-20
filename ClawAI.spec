@@ -1,13 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec file para ClawAI Studio.
+PyInstaller spec for ClawAI Desktop.
 
-Build:
-    pyinstaller ClawAI.spec
+Build (single-file):
+    pyinstaller --clean --onefile ClawAI.spec
 
-Output:
-    dist/ClawAI/ClawAI.exe  (single directory)
-    dist/ClawAI.exe          (via build_exe.py single-file)
+Build (single-directory — default in this file):
+    pyinstaller --clean ClawAI.spec
 """
 
 import os
@@ -15,120 +14,69 @@ from pathlib import Path
 
 block_cipher = None
 
-# ──────────────────────────────────────────────
-# Data files to include
-# ──────────────────────────────────────────────
+# ── Data files to embed ────────────────────────────────────────
+BASE_DIR   = Path(__file__).resolve().parent          # project root
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"        # React build output
+DIST_DEST  = os.path.join("frontend", "dist")         # destination inside bundle
 
-# Frontend dist (if exists)
-frontend_dist = Path("frontend/dist")
-datas = [
-    ("configs", "configs"),
-    ("database", "database"),
-    ("clawai", "clawai"),
+a_datas = [
+    (str(FRONTEND_DIST), DIST_DEST) if FRONTEND_DIST.exists() else None,
 ]
-if frontend_dist.exists():
-    datas.append(("frontend/dist", "frontend/dist"))
-
-# ──────────────────────────────────────────────
-# Analysis
-# ──────────────────────────────────────────────
+# Filter out the None entry in case dist doesn't exist yet.
+a_datas = [d for d in a_datas if d is not None]
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ["main.py"],                                        # entry point (will be inside bundle root)
+    pathex=[],                                          # nothing extra needed
     binaries=[],
-    datas=datas,
+    datas=a_datas,                                      # React static assets
     hiddenimports=[
-        # FastAPI + Uvicorn
-        'uvicorn',
-        'uvicorn.config',
-        'uvicorn.loops.auto',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.protocols.websockets.auto',
-        'fastapi',
-        'fastapi.middleware.cors',
-        'fastapi.responses',
-        'fastapi.staticfiles',
-        'pydantic',
-        'pydantic.networks',
-        # HTTP clients
-        'httpx',
-        'httpx._config',
-        'httpx._client',
-        'httpcore',
-        'httpcore._async',
-        'httpcore.backends.auto',
-        # Desktop
-        'webview',
-        'webview.platforms',
-        'webview.util',
-        'webbrowser',
-        # System
-        'psutil',
-        # Internal modules
-        'clawai.api.tools_api',
-        'clawai.autopilot',
-        'clawai.autonomy.proactive',
-        'clawai.chat.chat_service',
-        'clawai.workspaces',
-        'clawai.desktop_server',
-        'clawai.server',
-        'clawai.main',
-        'clawai.bootstrap',
-        'clawai.config',
-        'clawai.config.config_manager',
-        'clawai.config.settings',
+        "uvicorn",
+        "fastapi",
+        "httpx",
+        "psutil",
+        "webview",
+        "clawai.main",
+        "clawai.server",
+        "clawai.bootstrap",
+        "clawai.desktop_server",
+        # FastAPI runtime deps
+        "starlette.middleware.cors",
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
-        'tkinter',
-        'pytest',
-        'sphinx',
-        'setuptools',
-        'jupyter',
-        'notebook',
-        'IPython',
-        'matplotlib',
-        'scipy',
-        'numpy',
-        'pandas',
+        "tkinter",
+        "pytest",
+        "sphinx",
+        "jupyter",
+        "IPython",
+        "_pyrepl",
+        "test",
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
-    noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-
-# Single-directory build (default)
+# ── Single-file EXE (uncomment for --onefile builds) ───────────
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
-    name='ClawAI',
+    name="ClawAI",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    console=False,
+    upx=True,                         # compress bootloaders with UPX when available
+    console=False,                    # no terminal window (desktop app)
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='ClawAI',
 )

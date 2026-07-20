@@ -1,0 +1,60 @@
+commit ae2e6a435080e45d7260826a7bd00783f38050af
+Author: claudiobordalo <claudio.fgcosta@gmail.com>
+Date:   Fri Jul 17 00:50:33 2026 -0300
+
+    Remove completed pytest PermissionError TODO item
+
+commit f907708194453038e7b60d865c41b9d2422f2627
+Author: claudiobordalo <claudio.fgcosta@gmail.com>
+Date:   Fri Jul 17 00:43:12 2026 -0300
+
+    Fix max iterations fallback and cleanup uploaded images
+    
+    - Use getattr for safe access to config.max_iterations (not defined on AgentConfiguration)
+    - Fallback: use len(backlog.goals) when no limit configured
+    - Clean up temporary image files after processing in /api/chat/image endpoint
+
+commit ab58a20c99013244818c812f293d72d06e9f4075
+Author: claudiobordalo <claudio.fgcosta@gmail.com>
+Date:   Fri Jul 17 00:12:15 2026 -0300
+
+    Merge branch 'main' of https://github.com/claudiobordalo/ClawAI
+
+commit 0640fee8e38bbf0a21c24e804d5db2c04ddfc3e0
+Author: ClawDio <claudio.fgcosta@gmail.com>
+Date:   Wed Jul 15 18:51:52 2026 -0300
+
+    Document LM Studio provider configuration
+
+commit fe0cfb6c2ce2a49634462cc08e022811a258757b
+Author: ClawDio <claudio.fgcosta@gmail.com>
+Date:   Wed Jul 15 18:51:35 2026 -0300
+
+    Respect configured LM Studio default model
+
+commit b75c36604fd53dd44b5ab4cf7fce35d2923ea70a
+Author: ClawDio <claudio.fgcosta@gmail.com>
+Date:   Wed Jul 15 18:51:13 2026 -0300
+
+    Export LM Studio provider implementation
+
+commit 8b089c98f0d604b7103809da38b2cd4403cf8a6a
+Author: ClawDio <claudio.fgcosta@gmail.com>
+Date:   Wed Jul 15 18:51:05 2026 -0300
+
+    Register LM Studio provider
+
+commit cdd43ff49c2f3b09216496ec9afbfc07151ec445
+Author: ClawDio <claudio.fgcosta@gmail.com>
+Date:   Wed Jul 15 18:51:00 2026 -0300
+
+    Add LM Studio provider
+
+commit daa6521263d7a020f0980468142612a8fb6458b8
+Author: ClawDio <claudio.fgcosta@gmail.com>
+Date:   Wed Jul 15 18:50:52 2026 -0300
+
+    Route providers by configured default and expose model discovery
+
+commit f6d00f061253ef72389c87e6d180a1496b2ecfd3
+Author: ClawDio <claudio.fgcosta@gmail.c

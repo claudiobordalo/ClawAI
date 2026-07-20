@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "D:\ClawAI\_check_bootstrap_imports.py", line 7, in <module>
+    from clawai.bootstrap import build_container
+  File "D:\ClawAI\clawai\bootstrap.py", line 3, in <module>
+    from clawai.ai.ai_manager import AIManager
+ModuleNotFoundError: No module named 'clawai.ai.ai_manager'
+FAILURE importing bootstrap:

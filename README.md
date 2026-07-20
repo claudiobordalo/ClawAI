@@ -1,151 +1,57 @@
-# ClawAI
+# Claw AI - Cognitive Architecture
 
-Autonomous coding agent with self-repair, goal-driven planning, and engineering memory.
+This repository contains the cognitive modules for Claw AI, including memory systems, learning engines, and planning capabilities.
 
-## Installation
+## Overview 
 
-### Prerequisites
+The system consists of three main cognitive components:
 
-1. **Node.js 18+** — [Download](https://nodejs.org/)
-2. **Python 3.12+** — [Download](https://www.python.org/downloads/)
-   - Install with "Add Python to PATH" checked
+1. **Memory System**: Stores contextual information and states.
+2. **Learning Engine**: Captures insights and patterns from processing experiences.
+3. **Planning Engine**: Generates execution plans based on learned knowledge and current context.
 
-### Quick Setup
+Each component provides:
+- Storage mechanisms for structured data
+- Search capabilities by tags, content types, or text 
+- Export/import functionality (JSON format)
+- Demo scripts to showcase usage
 
-```powershell
-# Install Python dependencies
-.\setup-python.ps1
+## Getting Started 
 
-# Install Node dependencies
-cd frontend
-npm install
-
-# Run in development mode
-npm run electron:dev
-```
-
-### Build for Production
-
-```powershell
-# Build Windows installer
-cd frontend
-npm run electron:build:win
-
-# Output: release/ClawAI Setup 0.1.0.exe
-```
-
-### Architecture
-
-```
-clawai/
-├── agent/           # Autonomous agent orchestration (Sprint 4)
-│   ├── autonomous_agent.py
-│   ├── agent_loop.py
-│   ├── agent_context.py
-│   ├── execution_session.py
-│   ├── execution_state.py
-│   ├── execution_events.py
-│   ├── goal_execution_result.py
-│   ├── retry_policy.py
-│   ├── checkpoint_manager.py
-│   └── metrics.py
-├── goals/           # Goal subsystem — deterministic planning & tracking
-│   ├── goal.py
-│   ├── goal_manager.py
-│   ├── goal_planner.py
-│   ├── goal_events.py
-│   ├── goal_validator.py
-│   ├── goal_status.py
-│   ├── goal_priority.py
-│   ├── goal_complexity.py
-│   ├── goal_progress.py
-│   ├── goal_backlog.py
-│   ├── goal_repository.py
-│   ├── goal_dependency_graph.py
-│   ├── goal_prioritizer.py
-│   ├── goal_decomposer.py
-│   ├── planning_context.py
-│   ├── planning_strategy.py
-│   ├── planner_factory.py
-│   └── engineering_memory_goal_repository.py
-├── executor/        # Task execution engine
-├── editor/          # Code editing operations
-├── engineering/     # Engineering memory & records
-├── tracing/         # Execution trace & observability
-├── testing/         # Test runner & result tracking
-├── selfrepair/      # Self-repair engine
-├── verification/    # Self-verification
-└── development/     # Development pipeline orchestration
-```
-
-## Local providers
-
-ClawAI can run against local OpenAI-compatible servers.
-
-To use LM Studio, set:
-
-```bash
-CLAWAI_DEFAULT_PROVIDER=lmstudio
-LMSTUDIO_BASE_URL=http://127.0.0.1:1234/v1
-LMSTUDIO_API_KEY=lm-studio
-LMSTUDIO_MODEL=<your-loaded-model>
-```
-
-The provider can also list available local models through the backend router when the server supports `/v1/models`.
-
-## Goal System
-
-The Goal subsystem provides an LLM-free, event-driven framework for defining, planning, tracking, and completing goals. See:
-
-- [`docs/architecture/goals.md`](docs/architecture/goals.md) — Architecture overview & Mermaid diagrams
-- [`docs/architecture/goal_system.md`](docs/architecture/goal_system.md) — Full API reference & extension guide
-- [`docs/planner.md`](docs/planner.md) — Sprint 3: Planner system, decomposition, dependency graph, prioritization
-- [`docs/agent.md`](docs/agent.md) — Sprint 4: Autonomous agent loop, sessions, retry, checkpoints
-
-### Quick Start
+To use these components in your project:
 
 ```python
-from clawai.goals import (
-    GoalManager, GoalPlanner, GoalBacklog,
-    GoalStatus, GoalPriority, Goal,
-    PlanningContext,
-)
+from clawaii.cognition import MemorySystem, LearningEngine, PlanningEngine
 
-# Plan using the new strategy architecture
-planner = GoalPlanner(strategy="rule_based")
-ctx = PlanningContext(objective="Fix auth bug\nAdd tests\nDeploy")
-backlog = planner.plan("Fix auth bug\nAdd tests\nDeploy", context=ctx)
+# Initialize the systems  
+memory_system = MemorySystem()
+learning_engine = LearningEngine() 
+planning_engine = PlanningEngine()
 
-# Orchestrate
-mgr = GoalManager(repository=EngineeringMemory())
-for g in backlog.goals:
-    mgr.add_goal(g)
-
-# Track
-mgr.create_backlog()
-goal = mgr.next_goal()
-mgr.complete_goal(goal.id)
-
-# Aggregate
-progress = mgr.progress()
-print(progress.summary)
+# Add entries and perform searches as needed...
 ```
 
-## Tests
+## Directory Structure  
+
+- `clawaii/cognition/` - Core cognitive modules
+  - `memory_system.py` - Manages contextual memories
+  - `learning_engine.py` - Stores insights and patterns  
+  - `planning.py` - Generates execution plans
+
+Each module includes:
+- Data structures for representing entries 
+- Storage mechanisms with indexing capabilities
+- Search functions (by tag, content type, text)
+- Export/import methods 
+
+## Usage Examples  
+
+The modules provide demo functionality that can be run directly:
 
 ```bash
-pytest                            # Full suite (573+ tests)
-pytest tests/unit/test_goal*.py   # Goal subsystem (168 tests)
-pytest --cov=clawai.goals         # Coverage > 95%
+python clawaii/cognition/memory_system.py  
+python clawaii/cognition/learning_engine.py
+python clawaii/cognition/planning.py
 ```
 
-## Validation
-
-```bash
-ruff check .
-mypy clawai/
-```
-
-## Technical Backlog
-
-See [`docs/technical_backlog.md`](docs/technical_backlog.md) for the roadmap.
+Each will output a summary of its contents and demonstrate search capabilities.
