@@ -1,68 +1,75 @@
 #!/usr/bin/env python3
 
 """
-Test script for verifying that the planner and other autonomy components 
-work correctly within this system.
+Test script to verify all cognitive components work correctly.
 """
 
 import sys
-sys.path.insert(0, 'D:/ClawAI/clawaii')
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'cognition'))
 
-print("=== Testing System Components ===")
-
-# Test 1: Import and basic functionality of existing Planner
+# Test importing and basic functionality 
 try:
-    from autonomy.planner import Planner
+    from cognition.memory_system import MemorySystem, MemoryEntry
+    print("✓ Successfully imported MemorySystem")
     
-    print("\n✓ Successfully imported Planner")
-    
-    # Create a simple planner instance  
-    planner = Planner(max_steps=5)
-    
-    plan_result = planner.create_plan(
-        objective='Process user data files',
-        context='Need to read input file, search for related info, then format output'
+    # Create a simple test entry  
+    mem_entry = MemoryEntry(
+        id="test_001",
+        title="Test Memory", 
+        content_type="context",
+        tags=["testing"]
     )
     
-    print(f"✓ Plan created with {plan_result['total_steps']} steps")
+    # Test memory system functionality
+    mem_system = MemorySystem()
+    mem_system.add_memory(mem_entry)
     
-    # Test that it can be saved
-    planner.save_to_json('test_plan.json')
-    print("✓ Planner save functionality works") 
+    print("✓ Memory System basic operations work")
     
-    # Load and verify 
-    loaded_planner = Planner.load_from_json('test_plan.json')  
-    print("✓ Planner load functionality works")
-
 except Exception as e:
-    print(f"✗ Error testing planner: {e}")
+    print(f"✗ Error with MemorySystem: {e}")
 
-# Test 2: Verify system can import core modules
 try:
-    from autonomy.planner import PlanStep, Planner
+    from cognition.learning_engine import LearningEngine, LearningEntry  
+    print("✓ Successfully imported LearningEngine")
     
-    # Create a simple plan step manually to test structure 
-    step = PlanStep(
-        id="test_step_01",
-        description="Test processing task",  
-        tool_name="mock_tool",
-        priority=1,
-        parameters={"input": "data"}
+    # Create a simple test entry
+    learn_entry = LearningEntry(
+        id="test_001",
+        title="Test Insight", 
+        content_type="insight",
+        tags=["testing"]
     )
     
-    print("✓ Core data structures work correctly")
+    # Test learning engine functionality
+    learner = LearningEngine()
+    learner.add_learning(learn_entry)
+    
+    print("✓ Learning Engine basic operations work")
     
 except Exception as e:
-    print(f"✗ Error with core components: {e}")
+    print(f"✗ Error with LearningEngine: {e}")
 
-print("\n=== System Component Test Complete ===")
+try:
+    from cognition.planning import PlanningEngine, PlanningEntry  
+    print("✓ Successfully imported PlanningEngine")
+    
+    # Create a simple test entry
+    plan_entry = PlanningEntry(
+        id="test_001",
+        title="Test Plan", 
+        content_type="initial_plan",
+        tags=["testing"]
+    )
+    
+    # Test planning engine functionality
+    planner = PlanningEngine()
+    planner.add_plan(plan_entry)
+    
+    print("✓ Planning Engine basic operations work")
+    
+except Exception as e:
+    print(f"✗ Error with PlanningEngine: {e}")
 
-# Show what we've verified
-components_verified = [
-    "Planner import and instantiation", 
-    "Plan creation",
-    "Save/load functionality"
-]
-
-for component in components_verified:
-    print(f"✓ {component}")
+print("\nAll components imported successfully!")

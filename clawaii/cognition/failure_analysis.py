@@ -1,314 +1,156 @@
-from __future__ import annotations
+"""
+Failure Analysis Engine for Claw AI - analyzes failures and generates insights.
+"""
 
-import re 
-import json
-from typing import List, Optional, Union
-from enum import Enum
+from .base_memory_system import BaseMemoryEntry, BaseMemorySystem
+from .reflection_engine import ReflectionEntry
 
+class FailureAnalysisEntry(BaseMemoryEntry):
+    """Represents a single failure analysis entry."""
+    
+    def __init__(self, id: str, title: str, content_type: str, tags=None, created_at=None,
+                 failure_id: str = None, root_cause: str = "", mitigation_strategies: list = None):
+        super().__init__(id=id, title=title, content_type=content_type, tags=tags or [], created_at=created_at)
+        
+        # Failure analysis specific fields
+        self.failure_id = failure_id  # ID of the failed execution 
+        self.root_cause = root_cause   # Identified cause of failure  
+        self.mitigation_strategies = mitigation_strategies or []  # Strategies to prevent recurrence
 
-class FailureCategory(Enum):
-    """Enumeration of failure types for better categorization and handling."""
+class FailureAnalysisEngine(BaseMemorySystem):
+    """Analyzes failures and generates insights for learning."""
     
-    # System/Infrastructure failures  
-    TIMEOUT = "timeout"
-    RESOURCE_CONSTRAINTS = "resource_constraints" 
-    NETWORK_ERROR = "network_error"
-    SYSTEM_FAILURE = "system_failure"
-    
-    # Tool-specific errors
-    TOOL_EXECUTION_FAILED = "tool_execution_failed"
-    INVALID_TOOL_CALL = "invalid_tool_call"
-    MISSING_DEPENDENCY = "missing_dependency"
-    
-    # Input/Validation failures  
-    INPUT_VALIDATION_ERROR = "input_validation_error" 
-    SCHEMA_MISMATCH = "schema_mismatch"
-    DATA_FORMAT_ERROR = "data_format_error"
-    
-    # Logic/Decision errors
-    LOGIC_FAILURE = "logic_failure"
-    DECISION_ERROR = "decision_error"
-    REASONING_FLAW = "reasoning_flaw"
-    
-    # Task-specific failures 
-    TASK_INCOMPLETE = "task_incomplete"  
-    RESULT_UNEXPECTED = "result_unexpected"
-    OUTPUT_FORMAT_ERROR = "output_format_error"
+    def __init__(self): 
+        super().__init__()
+        
+    def add_analysis(self, entry: FailureAnalysisEntry):
+        """Add a new failure analysis."""  
+        self.add_entry(entry)
+        
+    def get_analysis(self, analysis_id: str) -> FailureAnalysisEntry:
+        """Retrieve a specific failure analysis by its ID."""
+        return self.get_entry(analysis_id)
 
-    UNKNOWN = "unknown"
-
-
-class FailureAnalysis:
-    """Enhanced failure analysis system for better error categorization and handling."""
-    
-    @staticmethod
-    def classify(error_message: Union[str, Exception]) -> FailureCategory:
+    def analyze_failure(self, reflection_entry: "ReflectionEntry") -> FailureAnalysisEntry:
         """
-        Classify an error message into a specific category.
+        Analyze a failed execution and generate insights.
         
         Args:
-            error_message (str | Exception): The raw error message or exception
+            reflection_entry (ReflectionEntry): The failed execution to analyze
             
         Returns:
-            FailureCategory: Categorized failure type  
-            
-        Example:
-            >>> FailureAnalysis.classify("Timeout after 30 seconds")
-            <FailureCategory.TIMEOUT: 'timeout'>
+            FailureAnalysisEntry: Analysis of the failure
         """
-        if isinstance(error_message, Exception):
-            msg = str(error_message)
-        else:
-            msg = error_message.lower()
+        if not isinstance(reflection_entry, ReflectionEntry):
+            raise TypeError("Expected ReflectionEntry")
+            
+        # Simple analysis logic - in a real implementation this would be more sophisticated  
+        root_cause = "Unknown"
+        mitigation_strategies = []
         
-        # Define patterns for different categories
-        patterns = {
-            FailureCategory.TIMEOUT: [
-                r"timeout", 
-                r"time.*out",
-                r"(exceeded|over) .* (limit|time)",
-                r"deadline"
-            ],
+        # Extract information from failed result 
+        if reflection_entry.result:
+            error_info = str(reflection_entry.result)
             
-            FailureCategory.NETWORK_ERROR: [  
-                r"network error",
-                r"connection.*failed",
-                r"connect.*refused",
-                r"no route to host", 
-                r"name or service not known",
-                r"(un)?reachable"
-            ],
-
-            FailureCategory.SYSTEM_FAILURE: [
-                r"system failure",
-                r"internal server error",
-                r"os error",
-                r"segmentation fault",  
-                r"memory.*error",
-                r"crash"
-            ],
-            
-            FailureCategory.TOOl_EXECUTION_FAILED: [ 
-                r"(tool|function) .* failed",
-                r"execution.*failed",
-                r"command not found",
-                r"(invalid|unknown).*tool",
-                r"not supported",
-                r"'NoneType' object has no attribute"
-            ],
-
-            FailureCategory.INVALID_TOOL_CALL: [
-                r"argument.*missing", 
-                r"required .* argument",
-                r"type error",
-                r"value error",
-                r"parameter validation failed"
-            ],
-            
-            FailureCategory.INPUT_VALIDATION_ERROR: [  
-                r"(validation|input) error",
-                r"data format invalid",
-                r"schema mismatch",
-                r"invalid.*format", 
-                r"incompatible type",
-                r"type.*mismatch"
-            ],
-
-            FailureCategory.LOGIC_FAILURE: [
-                r"logically.*inconsistent",
-                r"logic.*error",
-                r"(loop|condition).*failed",  
-                r"recursive call.*exceeded",
-                r"circular dependency"
-            ],
-            
-            FailureCategory.TASK_INCOMPLETE: [ 
-                r"incomplete task",
-                r"task not finished",
-                r"partial execution",
-                r"not completed"
-            ],
-
-            FailureCategory.RESULT_UNEXPECTED: [
-                r"(unexpected|unrecognized).*result",  
-                r"no.*output",
-                r"data.*missing",
-                r"empty result",
-                r"null response"
-            ]
-        }
-        
-        # Match against patterns
-        for category, pattern_list in patterns.items():
-            if any(re.search(pattern, msg) for pattern in pattern_list):
-                return category
+            if "timeout" in error_info.lower():
+                root_cause = "Network timeout or connection issues"
+                mitigation_strategies.extend([
+                    "Implement exponential backoff",
+                    "Add retry mechanism with jitter",  
+                    "Increase timeout values for unreliable connections"
+                ])
                 
-        # If no specific match found but contains common error indicators  
-        if re.search(r"(error|exception)", msg): 
-            return FailureCategory.UNKNOWN
+            elif "permission denied" in error_info.lower() or "access denied" in error_info.lower():
+                root_cause = "Insufficient permissions or access control issues"
+                mitigation_strategies.extend([
+                    "Verify authentication credentials",
+                    "Check role-based access controls", 
+                    "Implement proper permission checking"
+                ])
             
-        # Default to unknown
-        return FailureCategory.UNKNOWN
+            elif "out of memory" in error_info.lower() or "memory error" in error_info.lower():
+                root_cause = "Memory allocation problems or resource exhaustion"
+                mitigation_strategies.extend([
+                    "Add memory usage monitoring",
+                    "Optimize data processing chunks", 
+                    "Implement garbage collection strategies"
+                ])
+        
+        # Create analysis entry
+        title = f"Analysis: {reflection_entry.task_id}"
+        if not root_cause:
+            root_cause = "Root cause could not be determined automatically"
+
+        analysis_entry = FailureAnalysisEntry(
+            id=f"fail_analysis_{len(self._entries) + 1:03d}",
+            title=title,
+            content_type="failure_insight",
+            tags=["analysis", "root_cause"],
+            failure_id=reflection_entry.id, 
+            root_cause=root_cause,
+            mitigation_strategies=mitigation_strategies
+        )
+        
+        self.add_analysis(analysis_entry)
+        return analysis_entry
+
+    def get_recent_failures(self) -> list:
+        """Get most recent failures that need attention."""
+        # Get all failed executions and their analyses  
+        failed_entries = [entry for entry in self._entries.values() 
+                         if isinstance(entry, ReflectionEntry) and not entry.success]
+        
+        return failed_entries
+
+    def demo():
+        """Demonstration of the Failure Analysis Engine.""" 
+        
+        from cognition.reflection_engine import ReflectionEngine
+        
+        # Create a reflection engine to get some test data
+        reflector = ReflectionEngine()
     
-    @staticmethod    
-    def analyze_multiple(errors: List[Union[str, Exception]]) -> dict:
-        """
-        Analyze multiple errors and provide summary statistics.
+        # Add sample reflections first (as they are needed for analysis)
+        failure_entry = ReflectionEntry(
+            id="ref_002", 
+            title="Failure: Task ProcessNetworkRequest",
+            content_type="execution_outcome",
+            tags=["reflection", "outcome"],
+            task_id="ProcessNetworkRequest",
+            result={"error": "Connection timeout"},
+            success=False
+        )
+
+        reflector.add_reflection(failure_entry)
         
-        Args:
-            errors (list): List of error messages or exceptions
-            
-        Returns:
-            dict: Analysis results including counts by category
-        """ 
-        if not errors:
-            return {"total": 0}
-            
-        categorized = {}
-        for err in errors:
-            try:
-                cat = FailureAnalysis.classify(err)
-                key = str(cat.value)  
-                categorized[key] = categorized.get(key, 0) + 1
-            except Exception:
-                # Handle any classification failures gracefully 
-                continue
-                
-        return {
-            "total": len(errors),
-            "by_category": categorized,
-            "most_common": max(categorized.items(), key=lambda x: x[1])[0] if categorized else None  
-        }
+        # Create failure analysis engine  
+        analyzer = FailureAnalysisEngine()
     
-    @staticmethod
-    def get_suggested_action(error_type: FailureCategory) -> str:
-        """
-        Get a suggested action for handling this type of error.
-        
-        Args:
-            error_type (FailureCategory): The category to suggest actions for
-            
-        Returns:
-            str: Suggested course of action  
-            
-        Example:
-            >>> FailureAnalysis.get_suggested_action(FailureCategory.TIMEOUT)
-            "Retry with increased timeout or use exponential backoff"
-        """
-        suggestions = {
-            FailureCategory.TIMEOUT: 
-                "Retry with increased timeout or use exponential backoff",
-                
-            FailureCategory.NETWORK_ERROR:
-                "Check network connectivity, retry after delay",  
-            
-            FailureCategory.SYSTEM_FAILURE:
-                "Restart service/daemon and check system resources",
-                
-            FailureCategory.TOOL_EXECUTION_FAILED:
-                "Verify tool installation and permissions are correct",
-                
-            FailureCategory.INVALID_TOOL_CALL: 
-                "Review function signature and parameters passed to the tool",
-                
-            FailureCategory.INPUT_VALIDATION_ERROR:
-                "Validate input against expected schema before execution",  
-            
-            FailureCategory.LOGIC_FAILURE:
-                "Examine control flow logic, add more comprehensive tests",
-                
-            FailureCategory.TASK_INCOMPLETE:
-                "Resume partial task or re-initiate from scratch",
-                
-            FailureCategory.RESULT_UNEXPECTED: 
-                "Check output formatting and data extraction methods"
-        }
-        
-        return suggestions.get(error_type, f"Handle {error_type.value} error appropriately")
-    
-    @staticmethod
-    def extract_error_details(raw_message: str) -> dict:
-        """
-        Extract structured details from raw error messages.
-        
-        Args:
-            raw_message (str): Raw error text
-            
-        Returns:
-            dict: Structured information about the error  
-            
-        Example:
-            >>> FailureAnalysis.extract_error_details("Timeout after 30 seconds") 
-            {"type": "timeout", "duration_seconds": 30, "message": "..."}
-        """
-        # Initialize result
-        details = {
-            "raw_message": raw_message,
-            "category": str(FailureCategory.UNKNOWN.value),
-            "timestamp": None  
-        }
-        
+        # Analyze the failed execution 
         try:
-            error_cat = FailureAnalysis.classify(raw_message)
-            details["category"] = str(error_cat.value) 
+            analysis_result = analyzer.analyze_failure(reflector.get_entry("ref_002"))
             
-            # Extract numeric values if present
-            numbers = re.findall(r'\d+', raw_message) 
-            if numbers:
-                details["numeric_values"] = [int(n) for n in numbers]
+            print("=== Demo: Failure Analysis Engine ===\n")
+            
+            # Show summary
+            summary = analyzer.get_summary()  
+            print("--- Analysis Summary ---")  
+            for key, value in summary.items():
+                if isinstance(value, dict):
+                    print(f"{key}: {value}")
+                else:
+                    print(f"{key}: {value}")
+
+            print()
                 
-        except Exception as e:  
-            print(f"Error parsing error message: {e}")
+            # Display the analysis 
+            print("--- Failure Analysis Result ---")
+            print(f"ID: {analysis_result.id}")  
+            print(f"Title: '{analysis_result.title}'")  
+            print(f"Root Cause: {analysis_result.root_cause}")
             
-        return details
-    
-    @staticmethod    
-    def is_retryable(error_type: FailureCategory, attempt_count: int = 0) -> bool:
-        """
-        Determine if a failure of this type should be retried.
-        
-        Args:
-            error_type (FailureCategory): The category to evaluate  
-            attempt_count (int): Number of previous attempts
-            
-        Returns:
-            bool: Whether retry is recommended
-        """ 
-        # These are generally retryable with backoff
-        retryable_types = {
-            FailureCategory.TIMEOUT,
-            FailureCategory.NETWORK_ERROR,   
-            FailureCategory.SYSTEM_FAILURE,
-            FailureCategory.TOOL_EXECUTION_FAILED  
-        }
-        
-        return error_type in retryable_types or attempt_count < 3
-
-
-# Example usage and test functions 
-def demo_failure_analysis():
-    """Demonstrate how to use the failure analysis system."""
-    
-    # Test various errors
-    sample_errors = [
-        "Timeout after 60 seconds",
-        "Connection refused",  
-        "Tool 'read_file' failed execution",
-        "Invalid argument passed to function"
-    ]
-    
-    print("=== Failure Analysis Demo ===")
-    
-    for err in sample_errors:
-        cat = FailureAnalysis.classify(err)
-        action = FailureAnalysis.get_suggested_action(cat) 
-        details = FailureAnalysis.extract_error_details(err)
-        
-        print(f"\nError: {err}")
-        print(f"Category: {cat.value}")  
-        print(f"Suggestion: {action}")
-        print(f"Details: {details}")
-
+        except Exception as e:
+            print(f"Error during demo execution: {e}")
 
 if __name__ == "__main__":
-    demo_failure_analysis()
+    FailureAnalysisEngine.demo()
