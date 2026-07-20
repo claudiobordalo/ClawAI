@@ -8,13 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "electron:dev": "concurrently \"vite\" \"tsc -b --watch\" \"wait-on http://127.0.0.1:5173 && electron .\" -k",
-    "electron:build": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder",
-    "electron:build:win": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --win --x64",
-    "electron:build:win:dir": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --win --x64 --dir",
-    "electron:build:linux": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --linux --x64",
-    "electron:build:mac": "tsc -b && tsc -b tsconfig.electron.json && vite build && electron-builder --mac --arm64"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -39,8 +33,6 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "concurrently": "^9.2.0",
-    "electron": "^38.2.2",
-    "electron-builder": "^26.0.12",
     "eslint": "^10.5.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.3",
@@ -57,21 +49,7 @@
       "output": "release"
     },
     "files": [
-      "dist/**/*",
-      "dist-electron/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "../clawai",
-        "to": "clawai",
-        "filter": ["**/*"]
-      }
-    ],
-    "extraFiles": [
-      {
-        "from": "../pyproject.toml",
-        "to": "pyproject.toml"
-      }
+      "dist/**/*"
     ],
     "win": {
       "target": [
