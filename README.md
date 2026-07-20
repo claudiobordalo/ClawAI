@@ -2,6 +2,10 @@
 
 This repository contains the cognitive modules for Claw AI, including memory systems, learning engines, and planning capabilities.
 
+## Desktop Quick Start
+
+If you want to open the desktop application, use [`DESKTOP_QUICKSTART.md`](DESKTOP_QUICKSTART.md).
+
 ## Overview 
 
 The system consists of three main cognitive components:
