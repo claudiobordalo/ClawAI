@@ -1,5 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
 echo ========================================
 echo   ClawAI Studio - Build Desktop
@@ -36,14 +37,15 @@ if %errorlevel% neq 0 (
 REM Build do frontend
 echo.
 echo [INFO] Buildando frontend...
-cd frontend
+pushd frontend
 call npm run build
-if %errorlevel% neq 0 (
+set FRONTEND_BUILD_ERROR=!errorlevel!
+popd
+if !FRONTEND_BUILD_ERROR! neq 0 (
     echo [WARN] Falha no build do frontend. Continuando sem...
     goto :skip_frontend
 )
 echo [OK] Frontend buildado com sucesso.
-cd ..
 
 :skip_frontend
 
@@ -88,5 +90,5 @@ echo ========================================
 echo.
 echo Para testar:
 echo   dist\ClawAI.exe
-echo.
+necho.
 pause
