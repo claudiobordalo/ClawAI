@@ -25,7 +25,7 @@ def main():
     """Inicia o ClawAI Studio no modo desktop nativo."""
     print("=" * 60)
     print("  ClawAI Studio")
-    print("  https://github.com/nicholasgn00/ClawAI")
+    print("  https://github.com/claudiobordalo/ClawAI")
     print("=" * 60)
     print()
 
