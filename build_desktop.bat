@@ -90,5 +90,5 @@ echo ========================================
 echo.
 echo Para testar:
 echo   dist\ClawAI.exe
-necho.
+echo.
 pause
