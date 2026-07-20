@@ -33,6 +33,10 @@ dist\ClawAI.exe
 - `desktop/` → servidor FastAPI + PyWebView
 - `frontend/` → React/Vite
 
+## O que não é mais o caminho de uso
+
+O caminho de uso principal não é mais Electron. O desktop deve abrir pelo `main.py`/`desktop_server.py` e ser distribuído como `dist\ClawAI.exe`.
+
 ## Observação
 
 Se você só deu `git pull` e não existe `dist\ClawAI.exe`, o desktop ainda não está pronto para ser aberto como executável. Nesse caso, use `ClawAI.bat` ou gere o build primeiro.
