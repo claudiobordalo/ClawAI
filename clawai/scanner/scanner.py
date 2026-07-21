@@ -134,6 +134,7 @@ def scan_project(root: str | Path | None = None) -> ProjectScan:
         dependencies=sorted(set(dependencies)),
         scripts=["build_desktop.bat", "ClawAI.bat"] if (project_root / "build_desktop.bat").exists() else [],
         directories=_count_by_top_directory(project_root, files),
+        python_directories=_count_by_top_directory(project_root, python_files),
         git={"branch": branch} if branch else {},
     )
     return scan
