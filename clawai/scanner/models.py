@@ -17,6 +17,7 @@ class ProjectScan:
     dependencies: list[str] = field(default_factory=list)
     scripts: list[str] = field(default_factory=list)
     directories: list[dict[str, Any]] = field(default_factory=list)
+    python_directories: list[dict[str, Any]] = field(default_factory=list)
     git: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -32,5 +33,6 @@ class ProjectScan:
             "dependencies": self.dependencies,
             "scripts": self.scripts,
             "directories": self.directories,
+            "python_directories": self.python_directories,
             "git": self.git,
         }
