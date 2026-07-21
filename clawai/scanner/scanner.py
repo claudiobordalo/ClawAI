@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -145,6 +146,42 @@ def _count_js(files: list[Path]) -> int:
     return sum(1 for path in files if path.suffix.lower() in JS_EXTENSIONS)
 
 
+def _scan_python_ast(files: list[Path]) -> list[dict[str, Any]]:
+    module_stats: dict[str, dict[str, Any]] = defaultdict(lambda: {"path": "", "files": 0, "classes": 0, "functions": 0, "async_functions": 0})
+
+    for path in files:
+        if path.suffix.lower() != ".py":
+            continue
+
+        try:
+            source = _read_text(path)
+            tree = ast.parse(source)
+        except Exception:
+            continue
+
+        module = _module_name(_detect_root(None), path)
+        stats = module_stats[module]
+        stats["path"] = module
+        stats["files"] += 1
+
+        classes = 0
+        functions = 0
+        async_functions = 0
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                classes += 1
+            elif isinstance(node, ast.AsyncFunctionDef):
+                async_functions += 1
+            elif isinstance(node, ast.FunctionDef):
+                functions += 1
+
+        stats["classes"] += classes
+        stats["functions"] += functions
+        stats["async_functions"] += async_functions
+
+    return [module_stats[name] for name in sorted(module_stats.keys(), key=lambda item: (-module_stats[item]["files"], item))]
+
+
 def scan_project(root: str | Path | None = None, *, source_only: bool = True) -> ProjectScan:
     project_root = _detect_root(root)
     files = _walk_files(project_root)
@@ -203,7 +240,7 @@ def scan_project(root: str | Path | None = None, *, source_only: bool = True) ->
         directories=_count_by_top_directory(project_root, source_files),
         python_directories=_count_by_top_directory(project_root, python_files),
         test_directories=_count_by_top_directory(project_root, test_files),
-        modules=_count_by_module(project_root, python_files),
+        modules=_scan_python_ast(python_files),
         git={"branch": branch} if branch else {},
     )
     return scan
