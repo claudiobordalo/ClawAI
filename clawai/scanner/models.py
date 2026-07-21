@@ -11,6 +11,8 @@ class ProjectScan:
     branch: str | None = None
     python_files: int = 0
     javascript_files: int = 0
+    test_python_files: int = 0
+    test_javascript_files: int = 0
     entrypoints: list[str] = field(default_factory=list)
     frontend: str | None = None
     backend: str | None = None
@@ -18,6 +20,7 @@ class ProjectScan:
     scripts: list[str] = field(default_factory=list)
     directories: list[dict[str, Any]] = field(default_factory=list)
     python_directories: list[dict[str, Any]] = field(default_factory=list)
+    test_directories: list[dict[str, Any]] = field(default_factory=list)
     git: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,6 +30,8 @@ class ProjectScan:
             "branch": self.branch,
             "python_files": self.python_files,
             "javascript_files": self.javascript_files,
+            "test_python_files": self.test_python_files,
+            "test_javascript_files": self.test_javascript_files,
             "entrypoints": self.entrypoints,
             "frontend": self.frontend,
             "backend": self.backend,
@@ -34,5 +39,6 @@ class ProjectScan:
             "scripts": self.scripts,
             "directories": self.directories,
             "python_directories": self.python_directories,
+            "test_directories": self.test_directories,
             "git": self.git,
         }
