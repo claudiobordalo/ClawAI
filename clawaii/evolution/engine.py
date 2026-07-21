@@ -28,12 +28,6 @@ TODO_RE = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b", re.IGNORECASE)
 MERGE_RE = re.compile(r"^(<<<<<<<|=======|>>>>>>>)", re.MULTILINE)
 
 
-def _safe_read_text(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8")
-    except Exception:
-        return ""
-
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
