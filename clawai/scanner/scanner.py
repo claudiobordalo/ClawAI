@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,18 @@ def _walk_files(root: Path) -> list[Path]:
     return files
 
 
+def _count_by_top_directory(root: Path, files: list[Path]) -> list[dict[str, Any]]:
+    counts: Counter[str] = Counter()
+    for path in files:
+        try:
+            rel = path.relative_to(root)
+        except ValueError:
+            continue
+        top = rel.parts[0] if rel.parts else "(root)"
+        counts[top] += 1
+    return [{"path": name, "files": count} for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+
+
 def scan_project(root: str | Path | None = None) -> ProjectScan:
     project_root = _detect_root(root)
     files = _walk_files(project_root)
@@ -120,6 +133,7 @@ def scan_project(root: str | Path | None = None) -> ProjectScan:
         backend=backend,
         dependencies=sorted(set(dependencies)),
         scripts=["build_desktop.bat", "ClawAI.bat"] if (project_root / "build_desktop.bat").exists() else [],
+        directories=_count_by_top_directory(project_root, files),
         git={"branch": branch} if branch else {},
     )
     return scan
