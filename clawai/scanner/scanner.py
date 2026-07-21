@@ -12,6 +12,32 @@ TEXT_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".toml",
 PYTHON_EXTENSIONS = {".py"}
 JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx"}
 
+# Directories that are not part of the source tree and would explode file counts.
+EXCLUDED_DIRS = {
+    ".git",
+    ".npx",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".venv",
+    ".env",
+    ".tox",
+    ".cache",
+    "__pycache__",
+    "build",
+    "dist",
+    "release",
+    "node_modules",
+}
+
+# Path parts that commonly indicate third-party or generated code.
+EXCLUDED_PATH_PARTS = {
+    "site-packages",
+    "dist-packages",
+    "lib",
+    "libs",
+}
+
 
 def _detect_root(root: str | Path | None = None) -> Path:
     if root is not None:
@@ -26,18 +52,25 @@ def _read_text(path: Path) -> str:
         return ""
 
 
+def _is_excluded_path(path: Path) -> bool:
+    if any(part in EXCLUDED_DIRS for part in path.parts):
+        return True
+    if any(part in EXCLUDED_PATH_PARTS for part in path.parts):
+        return True
+    return False
+
+
 def _walk_files(root: Path) -> list[Path]:
     files: list[Path] = []
-    ignore_parts = {".git", "node_modules", ".venv", "dist", "build", "release", "__pycache__", ".npx", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
 
     for current, dirs, filenames in os.walk(root):
         current_path = Path(current)
-        dirs[:] = [d for d in dirs if d not in ignore_parts]
-        if any(part in ignore_parts for part in current_path.parts):
+        dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS]
+        if _is_excluded_path(current_path):
             continue
         for filename in filenames:
             path = current_path / filename
-            if any(part in ignore_parts for part in path.parts):
+            if _is_excluded_path(path):
                 continue
             files.append(path)
     return files
