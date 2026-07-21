@@ -13,7 +13,7 @@ TEXT_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".toml",
 PYTHON_EXTENSIONS = {".py"}
 JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx"}
 
-# Directories that are not part of the source tree and would explode file counts.
+# We want the scanner to focus on the real source tree, not generated or vendored content.
 EXCLUDED_DIRS = {
     ".git",
     ".npx",
@@ -31,13 +31,16 @@ EXCLUDED_DIRS = {
     "node_modules",
 }
 
-# Path parts that commonly indicate third-party or generated code.
 EXCLUDED_PATH_PARTS = {
     "site-packages",
     "dist-packages",
     "lib",
     "libs",
 }
+
+# Default scope for the scanner output.
+SOURCE_TOP_LEVEL_DIRS = {"clawai", "desktop", "frontend"}
+TEST_TOP_LEVEL_DIRS = {"tests"}
 
 
 def _detect_root(root: str | Path | None = None) -> Path:
@@ -77,6 +80,24 @@ def _walk_files(root: Path) -> list[Path]:
     return files
 
 
+def _top_directory(root: Path, path: Path) -> str:
+    rel = path.relative_to(root)
+    return rel.parts[0] if rel.parts else "(root)"
+
+
+def _is_source_file(root: Path, path: Path) -> bool:
+    top = _top_directory(root, path)
+    return top in SOURCE_TOP_LEVEL_DIRS
+
+
+def _is_test_file(root: Path, path: Path) -> bool:
+    top = _top_directory(root, path)
+    if top in TEST_TOP_LEVEL_DIRS:
+        return True
+    name = path.name.lower()
+    return name.startswith("test_") or name.endswith("_test.py") or name.endswith(".test.py")
+
+
 def _count_by_top_directory(root: Path, files: list[Path]) -> list[dict[str, Any]]:
     counts: Counter[str] = Counter()
     for path in files:
@@ -89,12 +110,29 @@ def _count_by_top_directory(root: Path, files: list[Path]) -> list[dict[str, Any
     return [{"path": name, "files": count} for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
 
 
-def scan_project(root: str | Path | None = None) -> ProjectScan:
+def _count_python(files: list[Path]) -> int:
+    return sum(1 for path in files if path.suffix.lower() in PYTHON_EXTENSIONS)
+
+
+def _count_js(files: list[Path]) -> int:
+    return sum(1 for path in files if path.suffix.lower() in JS_EXTENSIONS)
+
+
+def scan_project(root: str | Path | None = None, *, source_only: bool = True) -> ProjectScan:
     project_root = _detect_root(root)
     files = _walk_files(project_root)
 
-    python_files = [path for path in files if path.suffix.lower() in PYTHON_EXTENSIONS]
-    js_files = [path for path in files if path.suffix.lower() in JS_EXTENSIONS]
+    if source_only:
+        source_files = [path for path in files if _is_source_file(project_root, path)]
+        test_files = [path for path in files if _is_test_file(project_root, path)]
+    else:
+        source_files = files
+        test_files = [path for path in files if _is_test_file(project_root, path)]
+
+    python_files = [path for path in source_files if path.suffix.lower() in PYTHON_EXTENSIONS]
+    js_files = [path for path in source_files if path.suffix.lower() in JS_EXTENSIONS]
+    test_python_files = [path for path in test_files if path.suffix.lower() in PYTHON_EXTENSIONS]
+    test_js_files = [path for path in test_files if path.suffix.lower() in JS_EXTENSIONS]
 
     entrypoints: list[str] = []
     for candidate in [project_root / "main.py", project_root / "ClawAI.bat", project_root / "desktop" / "main.py"]:
@@ -128,13 +166,16 @@ def scan_project(root: str | Path | None = None) -> ProjectScan:
         branch=branch,
         python_files=len(python_files),
         javascript_files=len(js_files),
+        test_python_files=len(test_python_files),
+        test_javascript_files=len(test_js_files),
         entrypoints=entrypoints,
         frontend=frontend,
         backend=backend,
         dependencies=sorted(set(dependencies)),
         scripts=["build_desktop.bat", "ClawAI.bat"] if (project_root / "build_desktop.bat").exists() else [],
-        directories=_count_by_top_directory(project_root, files),
+        directories=_count_by_top_directory(project_root, source_files),
         python_directories=_count_by_top_directory(project_root, python_files),
+        test_directories=_count_by_top_directory(project_root, test_files),
         git={"branch": branch} if branch else {},
     )
     return scan
