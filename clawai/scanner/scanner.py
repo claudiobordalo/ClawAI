@@ -110,6 +110,33 @@ def _count_by_top_directory(root: Path, files: list[Path]) -> list[dict[str, Any
     return [{"path": name, "files": count} for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
 
 
+def _module_name(root: Path, path: Path) -> str:
+    rel = path.relative_to(root).with_suffix("")
+    parts = list(rel.parts)
+    if not parts:
+        return "(root)"
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    else:
+        parts = parts[:-1]
+    if not parts:
+        return rel.parts[0] if rel.parts else "(root)"
+    return ".".join(parts)
+
+
+def _count_by_module(root: Path, files: list[Path]) -> list[dict[str, Any]]:
+    counts: Counter[str] = Counter()
+    for path in files:
+        if path.suffix.lower() != ".py":
+            continue
+        try:
+            module = _module_name(root, path)
+        except ValueError:
+            continue
+        counts[module] += 1
+    return [{"path": name, "files": count} for name, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))]
+
+
 def _count_python(files: list[Path]) -> int:
     return sum(1 for path in files if path.suffix.lower() in PYTHON_EXTENSIONS)
 
@@ -176,6 +203,7 @@ def scan_project(root: str | Path | None = None, *, source_only: bool = True) ->
         directories=_count_by_top_directory(project_root, source_files),
         python_directories=_count_by_top_directory(project_root, python_files),
         test_directories=_count_by_top_directory(project_root, test_files),
+        modules=_count_by_module(project_root, python_files),
         git={"branch": branch} if branch else {},
     )
     return scan
