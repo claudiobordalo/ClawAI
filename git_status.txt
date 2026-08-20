@@ -1,0 +1,1 @@
+git --git-dir='D:/ClawAI/.git' status 2>&1

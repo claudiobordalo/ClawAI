@@ -1,0 +1,14 @@
+# Python portable (gerado automaticamente)
+python/
+
+# Build output
+release/
+dist/
+
+# PyInstaller
+build/
+*.spec
+
+# Installer
+*.exe
+*.msi

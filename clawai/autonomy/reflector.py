@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, Optional
 
+from clawai.cognition.reflection_engine import ReflectionEngine, ReflectionEntry
+from clawai.cognition.failure_analysis import FailureAnalysis
 
 class Reflector:
-    def __init__(self, *, router: Any) -> None:
+    def __init__(self, *, router: Any, reflection_engine: Optional[ReflectionEngine] = None) -> None:
         self.router = router
+        self.reflection_engine = reflection_engine
 
     def reflect(
         self,
@@ -20,17 +23,56 @@ class Reflector:
         state: dict[str, Any],
     ) -> dict[str, Any]:
         system_prompt = (
-            "Você é o agente de reflexão. "
-            "Responda apenas com JSON válido contendo reflection, should_continue, error_type, needs_retry."
+            "Você é o agente de reflexão. Sua função principal é analisar os resultados das ações e decidir se o processo deve continuar ou parar."
+            "Responda apenas com JSON válido contendo reflection, should_continue, error_type, needs_retry e strategy."
         )
+        
+        # Enhanced analysis of tool results
+        error_details = self._analyze_tool_results(tool_results)
+        error_type = "none"
+        if error_details["has_errors"]:
+            last_error_msg = next((r.get("error") for r in tool_results if r.get("error")), None)
+            if last_error_msg:
+                # Use enhanced classification
+                try:
+                    classified_category = FailureAnalysis.classify(last_error_msg)
+                    error_type = str(classified_category) 
+                except Exception:
+                    error_type = "unknown"
+        else:
+            # If no direct errors but tool results exist, check for anomalies
+            if tool_results and len(tool_results) > 0:
+                all_empty_results = all(r.get("result") is None or (isinstance(r.get("result"), str) and r.get("result").strip() == "") 
+                                       for r in tool_results)
+                if all_empty_results:
+                    error_type = "empty_result"
+
+        # Get repeated errors from engine
+        repeated_errors_str = ""
+        strategy_suggestion = "default"
+        if self.reflection_engine:
+            repeated = self.reflection_engine.repeated_errors(min_count=2)
+            if repeated:
+                repeated_errors_str = f"\nERROS REPETIDOS DETECTADOS:\n{json.dumps(repeated, ensure_ascii=False)}"
+                # Suggest strategy based on patterns
+                if any("timeout" in str(err).lower() for err in repeated):
+                    strategy_suggestion = "retry_with_timeout_increase"
+                elif any("tool_failure" in str(err) or "execution_failed" in str(err).lower() \
+                        for err in repeated):
+                    strategy_suggestion = "fallback_to_alternative_approach"
+
+        # Enhanced payload with more context and history analysis
         payload = (
             f"Objetivo: {objective}\n\n"
             f"Contexto: {context}\n\n"
-            f"Decisão: {json.dumps(decision, ensure_ascii=False, default=str)}\n\n"
-            f"Resultados: {json.dumps(tool_results, ensure_ascii=False, default=str)}\n\n"
+            f"Decisão anterior: {json.dumps(decision, ensure_ascii=False, default=str)}\n\n"
+            f"Resultados das ferramentas:\n{self._format_tool_results(tool_results)}\n\n"
             f"Estado resumido: {json.dumps(state, ensure_ascii=False, default=str)}\n\n"
-            f"Iteração: {iteration}"
+            f"Iteração atual: {iteration}\n"
+            f"Detalhes de erro detectados:\n{json.dumps(error_details, ensure_ascii=False)}\n"
+            f"{repeated_errors_str}\n"
         )
+        
         try:
             raw = self.router.ask(
                 prompt=payload,
@@ -43,23 +85,123 @@ class Reflector:
                 "should_continue": False,
                 "error_type": "provider_error",
                 "needs_retry": False,
+                "strategy": strategy_suggestion
             }
+        
         parsed = self._parse_json(
             raw,
             default={
-                "reflection": "",
-                "should_continue": False,
-                "error_type": "none",
+                "reflection": "Análise de reflexão não disponível.",
+                "should_continue": True,  # Default to continue for better autonomy
+                "error_type": error_type,
                 "needs_retry": False,
+                "strategy": strategy_suggestion
             },
         )
-        return {
+        
+        result = {
             "reflection": str(parsed.get("reflection") or ""),
-            "should_continue": bool(parsed.get("should_continue", False)),
-            "error_type": str(parsed.get("error_type") or "none"),
+            "should_continue": bool(parsed.get("should_continue", True)),  # Default to true for better autonomy
+            "error_type": str(parsed.get("error_type") or error_type),
             "needs_retry": bool(parsed.get("needs_retry", False)),
+            "strategy": str(parsed.get("strategy") or strategy_suggestion)
         }
 
+        # Record the entry in the engine with enhanced information
+        if self.reflection_engine:
+            try:
+                from datetime import datetime, timezone
+                
+                failed_msgs = [r.get("error") for r in tool_results if r.get("error")]
+                success_flag = result["should_continue"] or result["needs_retry"]
+                
+                # Extract more meaningful information from decision reasoning
+                decisions_list = []
+                if isinstance(decision, dict) and "reasoning" in decision:
+                    decisions_list.append(str(decision.get("reasoning", "")))
+                elif isinstance(decision, str):
+                    decisions_list.append(decision)
+                
+                entry = ReflectionEntry(
+                    goal_id=objective,
+                    goal_title=objective[:100],  # Truncate for ID
+                    success=success_flag,
+                    what_failed=failed_msgs if failed_msgs else [],
+                    risks=[],
+                    opportunities=[],
+                    decisions=decisions_list,
+                    duration=0.0, 
+                    metadata={"iteration": iteration, "strategy_used": result["strategy"]}
+                )
+                self.reflection_engine.record(entry)
+            except Exception as e:
+                # Silent failure to not break the system
+                pass
+
+        return result
+
+    def _analyze_tool_results(self, tool_results: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Analyze tool results for patterns and anomalies.
+        Returns detailed error information that can guide decision making.
+        """
+        analysis = {
+            "has_errors": False,
+            "error_count": 0,
+            "successful_tools": [],
+            "failed_tools": [],
+            "empty_results": [],
+            "tool_details": []
+        }
+        
+        if not tool_results:
+            return analysis
+        
+        for result in tool_results:
+            success = result.get("success")
+            tool_name = result.get("tool", "unknown_tool")
+            error_msg = result.get("error")
+            
+            detail_info = {
+                "tool": tool_name,
+                "success": bool(success),
+                "has_error": bool(error_msg)
+            }
+            analysis["tool_details"].append(detail_info)
+            
+            if success is False or error_msg:
+                analysis["has_errors"] = True
+                analysis["error_count"] += 1
+                analysis["failed_tools"].append(tool_name)
+            elif success is True:
+                analysis["successful_tools"].append(tool_name)
+                
+            # Check for empty results that might be problematic
+            result_content = result.get("result")
+            if (result_content is None or 
+                (isinstance(result_content, str) and not result_content.strip())):
+                analysis["empty_results"].append(tool_name)
+        
+        return analysis
+    
+    def _format_tool_results(self, tool_results: list[dict[str, Any]]) -> str:
+        """
+        Format tool results for better readability in reflection prompt.
+        """
+        if not tool_results:
+            return "Nenhum resultado de ferramenta disponível."
+        
+        formatted = []
+        for i, result in enumerate(tool_results):
+            success_status = "✅ Sucesso" if result.get("success") is True else "❌ Falha" if result.get("success") is False else "❓ Indeterminado"
+            tool_name = result.get("tool", "unknown_tool")
+            error_msg = result.get("error")
+            
+            formatted.append(f"{i+1}. {tool_name} - {success_status}")
+            if error_msg:
+                formatted.append(f"   Erro: {str(error_msg)[:200]}...")  # Truncate long errors
+        return "\n".join(formatted)
+    
     def _parse_json(self, raw: str, *, default: dict[str, Any]) -> dict[str, Any]:
         try:
             text = raw.strip()
@@ -67,5 +209,7 @@ class Reflector:
                 text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
             parsed = json.loads(text)
             return parsed if isinstance(parsed, dict) else default
-        except Exception:
+        except Exception as e:
+            # Log error but don't crash the system
+            print(f"[REFLECTOR] Failed to parse JSON: {e}")
             return default

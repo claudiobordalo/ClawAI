@@ -1,0 +1,30 @@
+STDOUT: ae2e6a4 Remove completed pytest PermissionError TODO item
+f907708 Fix max iterations fallback and cleanup uploaded images
+ab58a20 Merge branch 'main' of https://github.com/claudiobordalo/ClawAI
+0640fee Document LM Studio provider configuration
+fe0cfb6 Respect configured LM Studio default model
+b75c366 Export LM Studio provider implementation
+8b089c9 Register LM Studio provider
+cdd43ff Add LM Studio provider
+daa6521 Route providers by configured default and expose model discovery
+f6d00f0 Add LM Studio provider settings
+1f567b7 Simplify standalone launcher to use backend app directly
+bdc6553 Serve frontend from backend app and keep API routes stable
+e3f6a82 Harden desktop HTTP bootstrap
+f5dca8b Add desktop UI dependency
+a047bcd Guard optional provider registration
+f2688f6 Ignore local agent and package caches
+1817fc6 Remove empty local Claude settings from repository
+44c16aa Remove local Claude settings from repository
+5c651bf Remove local Claude settings from repository
+11edc07 Remove local Claude settings from repository
+
+
+STDERR: (none)
+
+RC: 0
+Traceback (most recent call last):
+  File "D:\ClawAI\_git_check.py", line 14, in <module>
+    items = sorted([f.name for f in g.iterdir()[:30]])
+                                    ~~~~~~~~~~~^^^^^
+TypeError: 'map' object is not subscriptable

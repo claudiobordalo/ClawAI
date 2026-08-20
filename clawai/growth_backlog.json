@@ -1,0 +1,1736 @@
+[
+  {
+    "id": "EVO-1",
+    "title": "Tipagem em create_default (abstract_agent_loop.py)",
+    "description": "Função 'create_default' possui anotações de tipo incompletas (Args: context, Return: OK).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "agent\\abstract_agent_loop.py",
+      "Function: create_default"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-2",
+    "title": "Tipagem em __init__ (autonomous_agent.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: planner, Return: OK).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "agent\\autonomous_agent.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-3",
+    "title": "Tipagem em enqueue_autonomy (autonomy_api.py)",
+    "description": "Função 'enqueue_autonomy' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\autonomy_api.py",
+      "Function: enqueue_autonomy"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-4",
+    "title": "Tipagem em list_autonomy_queue (autonomy_api.py)",
+    "description": "Função 'list_autonomy_queue' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\autonomy_api.py",
+      "Function: list_autonomy_queue"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-5",
+    "title": "Tipagem em list_autonomy_plans (autonomy_api.py)",
+    "description": "Função 'list_autonomy_plans' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\autonomy_api.py",
+      "Function: list_autonomy_plans"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-6",
+    "title": "Tipagem em get_autonomy_plan (autonomy_api.py)",
+    "description": "Função 'get_autonomy_plan' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\autonomy_api.py",
+      "Function: get_autonomy_plan"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-7",
+    "title": "Tipagem em list_autonomy_memory (autonomy_api.py)",
+    "description": "Função 'list_autonomy_memory' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\autonomy_api.py",
+      "Function: list_autonomy_memory"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-8",
+    "title": "Tipagem em autonomy_state (autonomy_api.py)",
+    "description": "Função 'autonomy_state' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\autonomy_api.py",
+      "Function: autonomy_state"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-9",
+    "title": "Tipagem em _json_load (bridge_api.py)",
+    "description": "Função '_json_load' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: _json_load"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-10",
+    "title": "Tipagem em bridge_providers (bridge_api.py)",
+    "description": "Função 'bridge_providers' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: bridge_providers"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-11",
+    "title": "Tipagem em bridge_consult (bridge_api.py)",
+    "description": "Função 'bridge_consult' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: bridge_consult"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-12",
+    "title": "Tipagem em bridge_recommend_tool (bridge_api.py)",
+    "description": "Função 'bridge_recommend_tool' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: bridge_recommend_tool"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-13",
+    "title": "Tipagem em cognition_classify (bridge_api.py)",
+    "description": "Função 'cognition_classify' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: cognition_classify"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-14",
+    "title": "Tipagem em cognition_supervise (bridge_api.py)",
+    "description": "Função 'cognition_supervise' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: cognition_supervise"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-15",
+    "title": "Tipagem em cognition_workspaces (bridge_api.py)",
+    "description": "Função 'cognition_workspaces' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: cognition_workspaces"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-16",
+    "title": "Tipagem em cognition_workspace (bridge_api.py)",
+    "description": "Função 'cognition_workspace' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: cognition_workspace"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-17",
+    "title": "Tipagem em cognition_learning (bridge_api.py)",
+    "description": "Função 'cognition_learning' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\bridge_api.py",
+      "Function: cognition_learning"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-18",
+    "title": "Tipagem em evolution_state (evolution_api.py)",
+    "description": "Função 'evolution_state' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_state"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-19",
+    "title": "Tipagem em evolution_backlog (evolution_api.py)",
+    "description": "Função 'evolution_backlog' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_backlog"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-20",
+    "title": "Tipagem em evolution_history (evolution_api.py)",
+    "description": "Função 'evolution_history' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_history"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-21",
+    "title": "Tipagem em evolution_start (evolution_api.py)",
+    "description": "Função 'evolution_start' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_start"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-22",
+    "title": "Tipagem em evolution_stop (evolution_api.py)",
+    "description": "Função 'evolution_stop' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_stop"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-23",
+    "title": "Tipagem em evolution_run_once (evolution_api.py)",
+    "description": "Função 'evolution_run_once' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_run_once"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-24",
+    "title": "Tipagem em evolution_rebuild (evolution_api.py)",
+    "description": "Função 'evolution_rebuild' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\evolution_api.py",
+      "Function: evolution_rebuild"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-25",
+    "title": "Tipagem em intelligence_state (intelligence_api.py)",
+    "description": "Função 'intelligence_state' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: intelligence_state"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-26",
+    "title": "Tipagem em intelligence_analyze (intelligence_api.py)",
+    "description": "Função 'intelligence_analyze' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: intelligence_analyze"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-27",
+    "title": "Tipagem em intelligence_tools (intelligence_api.py)",
+    "description": "Função 'intelligence_tools' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: intelligence_tools"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-28",
+    "title": "Tipagem em intelligence_memory_search (intelligence_api.py)",
+    "description": "Função 'intelligence_memory_search' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: intelligence_memory_search"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-29",
+    "title": "Tipagem em intelligence_memory_remember (intelligence_api.py)",
+    "description": "Função 'intelligence_memory_remember' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: intelligence_memory_remember"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-30",
+    "title": "Tipagem em composio_status (intelligence_api.py)",
+    "description": "Função 'composio_status' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: composio_status"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-31",
+    "title": "Tipagem em composio_tools (intelligence_api.py)",
+    "description": "Função 'composio_tools' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: composio_tools"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-32",
+    "title": "Tipagem em composio_connections (intelligence_api.py)",
+    "description": "Função 'composio_connections' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: composio_connections"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-33",
+    "title": "Tipagem em composio_execute (intelligence_api.py)",
+    "description": "Função 'composio_execute' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\intelligence_api.py",
+      "Function: composio_execute"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-34",
+    "title": "Tipagem em list_tools (tools_api.py)",
+    "description": "Função 'list_tools' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\tools_api.py",
+      "Function: list_tools"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-35",
+    "title": "Tipagem em list_connections (tools_api.py)",
+    "description": "Função 'list_connections' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\tools_api.py",
+      "Function: list_connections"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-36",
+    "title": "Tipagem em list_workspaces (workspaces_api.py)",
+    "description": "Função 'list_workspaces' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: list_workspaces"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-37",
+    "title": "Tipagem em open_workspace (workspaces_api.py)",
+    "description": "Função 'open_workspace' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: open_workspace"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-38",
+    "title": "Tipagem em select_workspace (workspaces_api.py)",
+    "description": "Função 'select_workspace' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: select_workspace"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-39",
+    "title": "Tipagem em close_workspace (workspaces_api.py)",
+    "description": "Função 'close_workspace' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: close_workspace"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-40",
+    "title": "Tipagem em current_workspace (workspaces_api.py)",
+    "description": "Função 'current_workspace' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: current_workspace"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-41",
+    "title": "Tipagem em tree (workspaces_api.py)",
+    "description": "Função 'tree' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: tree"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-42",
+    "title": "Tipagem em read_file (workspaces_api.py)",
+    "description": "Função 'read_file' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: read_file"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-43",
+    "title": "Tipagem em write_file (workspaces_api.py)",
+    "description": "Função 'write_file' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "api\\workspaces_api.py",
+      "Function: write_file"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-44",
+    "title": "Simplificar run (agent_runtime.py)",
+    "description": "Alta complexidade ciclomática detectada: 22. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "autonomy\\agent_runtime.py",
+      "Function: run"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-45",
+    "title": "Tipagem em run_audit (audit_runner.py)",
+    "description": "Função 'run_audit' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\audit_runner.py",
+      "Function: run_audit"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-46",
+    "title": "Tipagem em __init__ (batch_auditor.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-47",
+    "title": "Tipagem em visit_If (batch_auditor.py)",
+    "description": "Função 'visit_If' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: visit_If"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-48",
+    "title": "Tipagem em visit_While (batch_auditor.py)",
+    "description": "Função 'visit_While' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: visit_While"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-49",
+    "title": "Tipagem em visit_For (batch_auditor.py)",
+    "description": "Função 'visit_For' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: visit_For"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-50",
+    "title": "Tipagem em visit_ExceptHandler (batch_auditor.py)",
+    "description": "Função 'visit_ExceptHandler' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: visit_ExceptHandler"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-51",
+    "title": "Tipagem em visit_With (batch_auditor.py)",
+    "description": "Função 'visit_With' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: visit_With"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-52",
+    "title": "Tipagem em __init__ (batch_auditor.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-53",
+    "title": "Tipagem em audit_directory (batch_auditor.py)",
+    "description": "Função 'audit_directory' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: audit_directory"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-54",
+    "title": "Simplificar audit_directory (batch_auditor.py)",
+    "description": "Alta complexidade ciclomática detectada: 18. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: audit_directory"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-55",
+    "title": "Tipagem em save_tasks (batch_auditor.py)",
+    "description": "Função 'save_tasks' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\batch_auditor.py",
+      "Function: save_tasks"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-56",
+    "title": "Simplificar build_prompt (context_manager.py)",
+    "description": "Alta complexidade ciclomática detectada: 20. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "autonomy\\context_manager.py",
+      "Function: build_prompt"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-57",
+    "title": "Simplificar _safe_copy (execution_state.py)",
+    "description": "Alta complexidade ciclomática detectada: 21. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "autonomy\\execution_state.py",
+      "Function: _safe_copy"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-58",
+    "title": "Tipagem em test_intent_classifier_routes_engineering_requests_to_agent (test_intent_classifier.py)",
+    "description": "Função 'test_intent_classifier_routes_engineering_requests_to_agent' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\test_intent_classifier.py",
+      "Function: test_intent_classifier_routes_engineering_requests_to_agent"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-59",
+    "title": "Tipagem em test_intent_classifier_detects_image_file (test_intent_classifier.py)",
+    "description": "Função 'test_intent_classifier_detects_image_file' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\test_intent_classifier.py",
+      "Function: test_intent_classifier_detects_image_file"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-60",
+    "title": "Tipagem em test_prompt_builder_includes_file_content (test_prompt_builder.py)",
+    "description": "Função 'test_prompt_builder_includes_file_content' possui anotações de tipo incompletas (Args: tmp_path, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\test_prompt_builder.py",
+      "Function: test_prompt_builder_includes_file_content"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-61",
+    "title": "Tipagem em test_prompt_builder_sets_vision_role_for_images (test_prompt_builder.py)",
+    "description": "Função 'test_prompt_builder_sets_vision_role_for_images' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autonomy\\test_prompt_builder.py",
+      "Function: test_prompt_builder_sets_vision_role_for_images"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-62",
+    "title": "Tipagem em _json_load (autonomy_coordinator.py)",
+    "description": "Função '_json_load' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "autopilot\\autonomy_coordinator.py",
+      "Function: _json_load"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-63",
+    "title": "Modularizar auto_implement_runtime.py",
+    "description": "Arquivo excessivamente grande (38583 bytes). Recomenda-se divisão em módulos menores.",
+    "priority": 3,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.7,
+    "requirements": [
+      "autopilot\\auto_implement_runtime.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-64",
+    "title": "Simplificar _execute (auto_implement_runtime.py)",
+    "description": "Alta complexidade ciclomática detectada: 18. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "autopilot\\auto_implement_runtime.py",
+      "Function: _execute"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-65",
+    "title": "Tipagem em __init__ (evolution_analyzer.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-66",
+    "title": "Tipagem em visit_If (evolution_analyzer.py)",
+    "description": "Função 'visit_If' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_If"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-67",
+    "title": "Tipagem em visit_While (evolution_analyzer.py)",
+    "description": "Função 'visit_While' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_While"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-68",
+    "title": "Tipagem em visit_For (evolution_analyzer.py)",
+    "description": "Função 'visit_For' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_For"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-69",
+    "title": "Tipagem em visit_ExceptHandler (evolution_analyzer.py)",
+    "description": "Função 'visit_ExceptHandler' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_ExceptHandler"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-70",
+    "title": "Tipagem em visit_ListComp (evolution_analyzer.py)",
+    "description": "Função 'visit_ListComp' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_ListComp"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-71",
+    "title": "Tipagem em visit_DictComp (evolution_analyzer.py)",
+    "description": "Função 'visit_DictComp' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_DictComp"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-72",
+    "title": "Tipagem em visit_SetComp (evolution_analyzer.py)",
+    "description": "Função 'visit_SetComp' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_SetComp"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-73",
+    "title": "Tipagem em visit_GeneratorExp (evolution_analyzer.py)",
+    "description": "Função 'visit_GeneratorExp' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_GeneratorExp"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-74",
+    "title": "Tipagem em visit_With (evolution_analyzer.py)",
+    "description": "Função 'visit_With' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_With"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-75",
+    "title": "Tipagem em visit_MatchCase (evolution_analyzer.py)",
+    "description": "Função 'visit_MatchCase' possui anotações de tipo incompletas (Args: node, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: visit_MatchCase"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-76",
+    "title": "Tipagem em __init__ (evolution_analyzer.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-77",
+    "title": "Simplificar analyze_project (evolution_analyzer.py)",
+    "description": "Alta complexidade ciclomática detectada: 16. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: analyze_project"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-78",
+    "title": "Tipagem em _map_dependencies (evolution_analyzer.py)",
+    "description": "Função '_map_dependencies' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: _map_dependencies"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-79",
+    "title": "Tipagem em _register_import (evolution_analyzer.py)",
+    "description": "Função '_register_import' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: _register_import"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-80",
+    "title": "Tipagem em save_backlog (evolution_analyzer.py)",
+    "description": "Função 'save_backlog' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\evolution_analyzer.py",
+      "Function: save_backlog"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-81",
+    "title": "Tipagem em __init__ (execution_strategy.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\execution_strategy.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-82",
+    "title": "Tipagem em __init__ (response_post_processor.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: memory, Return: OK).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "cognition\\response_post_processor.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-83",
+    "title": "Simplificar _select_relevant_folders_compat (context_builder.py)",
+    "description": "Alta complexidade ciclomática detectada: 15. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "context\\context_builder.py",
+      "Function: _select_relevant_folders_compat"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-84",
+    "title": "Simplificar _select_relevant_dir_names (context_builder.py)",
+    "description": "Alta complexidade ciclomática detectada: 18. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "context\\context_builder.py",
+      "Function: _select_relevant_dir_names"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-85",
+    "title": "Tipagem em __init__ (profiler.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\profiler.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-86",
+    "title": "Tipagem em measure (profiler.py)",
+    "description": "Função 'measure' possui anotações de tipo incompletas (Args: name, metadata, Return: OK).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\profiler.py",
+      "Function: measure"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-87",
+    "title": "Tipagem em snapshot (profiler.py)",
+    "description": "Função 'snapshot' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\profiler.py",
+      "Function: snapshot"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-88",
+    "title": "Tipagem em log (runtime_logger.py)",
+    "description": "Função 'log' possui anotações de tipo incompletas (Args: data, Return: OK).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\runtime_logger.py",
+      "Function: log"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-89",
+    "title": "Tipagem em __init__ (trace.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\trace.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-90",
+    "title": "Tipagem em add (trace.py)",
+    "description": "Função 'add' possui anotações de tipo incompletas (Args: stage, data, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\trace.py",
+      "Function: add"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-91",
+    "title": "Tipagem em save (trace.py)",
+    "description": "Função 'save' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\trace.py",
+      "Function: save"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-92",
+    "title": "Tipagem em snapshot (trace.py)",
+    "description": "Função 'snapshot' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "debug\\trace.py",
+      "Function: snapshot"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-93",
+    "title": "Tipagem em _start (development_pipeline.py)",
+    "description": "Função '_start' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "development\\development_pipeline.py",
+      "Function: _start"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-94",
+    "title": "Tipagem em _finish (development_pipeline.py)",
+    "description": "Função '_finish' possui anotações de tipo incompletas (Args: token, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "development\\development_pipeline.py",
+      "Function: _finish"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-95",
+    "title": "Simplificar validate (patch_validator.py)",
+    "description": "Alta complexidade ciclomática detectada: 13. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "diffing\\patch_validator.py",
+      "Function: validate"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-96",
+    "title": "Modularizar engine.py",
+    "description": "Arquivo excessivamente grande (37267 bytes). Recomenda-se divisão em módulos menores.",
+    "priority": 3,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.7,
+    "requirements": [
+      "evolution\\engine.py"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-97",
+    "title": "Tipagem em _json_load (engine.py)",
+    "description": "Função '_json_load' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "evolution\\engine.py",
+      "Function: _json_load"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-98",
+    "title": "Simplificar _scan_repository (engine.py)",
+    "description": "Alta complexidade ciclomática detectada: 17. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "evolution\\engine.py",
+      "Function: _scan_repository"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-99",
+    "title": "Simplificar _generate_candidates (engine.py)",
+    "description": "Alta complexidade ciclomática detectada: 14. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "evolution\\engine.py",
+      "Function: _generate_candidates"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-100",
+    "title": "Tipagem em _start (autonomous_executor.py)",
+    "description": "Função '_start' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "executor\\autonomous_executor.py",
+      "Function: _start"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-101",
+    "title": "Tipagem em _finish (autonomous_executor.py)",
+    "description": "Função '_finish' possui anotações de tipo incompletas (Args: token, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "executor\\autonomous_executor.py",
+      "Function: _finish"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-102",
+    "title": "Simplificar _infer_tags (goal_decomposer.py)",
+    "description": "Alta complexidade ciclomática detectada: 13. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "goals\\goal_decomposer.py",
+      "Function: _infer_tags"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-103",
+    "title": "Simplificar validate_goal (goal_validator.py)",
+    "description": "Alta complexidade ciclomática detectada: 13. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "goals\\goal_validator.py",
+      "Function: validate_goal"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-104",
+    "title": "Simplificar _classify (broker.py)",
+    "description": "Alta complexidade ciclomática detectada: 13. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "intelligence\\broker.py",
+      "Function: _classify"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-105",
+    "title": "Tipagem em __init__ (llm_manager.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: router, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "llm\\llm_manager.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-106",
+    "title": "Tipagem em ask (llm_manager.py)",
+    "description": "Função 'ask' possui anotações de tipo incompletas (Args: role, prompt, system_prompt, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "llm\\llm_manager.py",
+      "Function: ask"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-107",
+    "title": "Tipagem em search (memory_manager.py)",
+    "description": "Função 'search' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "memory\\memory_manager.py",
+      "Function: search"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-108",
+    "title": "Simplificar parse (response_parser.py)",
+    "description": "Alta complexidade ciclomática detectada: 14. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "parser\\response_parser.py",
+      "Function: parse"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-109",
+    "title": "Tipagem em plan (patch_planner.py)",
+    "description": "Função 'plan' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "patching\\patch_planner.py",
+      "Function: plan"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-110",
+    "title": "Simplificar plan (patch_planner.py)",
+    "description": "Alta complexidade ciclomática detectada: 14. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "patching\\patch_planner.py",
+      "Function: plan"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-111",
+    "title": "Tipagem em _parse_provider_json (patch_planner.py)",
+    "description": "Função '_parse_provider_json' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "patching\\patch_planner.py",
+      "Function: _parse_provider_json"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-112",
+    "title": "Tipagem em _start (self_repair_engine.py)",
+    "description": "Função '_start' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "selfrepair\\self_repair_engine.py",
+      "Function: _start"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-113",
+    "title": "Tipagem em _finish (self_repair_engine.py)",
+    "description": "Função '_finish' possui anotações de tipo incompletas (Args: token, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "selfrepair\\self_repair_engine.py",
+      "Function: _finish"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-114",
+    "title": "Simplificar parse (test_parser.py)",
+    "description": "Alta complexidade ciclomática detectada: 19. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "testing\\test_parser.py",
+      "Function: parse"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-115",
+    "title": "Tipagem em __init__ (execution_trace.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "tracing\\execution_trace.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-116",
+    "title": "Simplificar is_ignored (ignore.py)",
+    "description": "Alta complexidade ciclomática detectada: 16. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "workspace\\ignore.py",
+      "Function: is_ignored"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-117",
+    "title": "Simplificar analyze (analyzer.py)",
+    "description": "Alta complexidade ciclomática detectada: 15. Recomenda-se decomposição.",
+    "priority": 4,
+    "category": "Refactoring",
+    "status": "backlog",
+    "impact_score": 0.85,
+    "requirements": [
+      "workspaces\\analyzer.py",
+      "Function: analyze"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-118",
+    "title": "Tipagem em _load_json (manager.py)",
+    "description": "Função '_load_json' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "workspaces\\manager.py",
+      "Function: _load_json"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-119",
+    "title": "Tipagem em execute (filesystem.py)",
+    "description": "Função 'execute' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "tools\\implementations\\filesystem.py",
+      "Function: execute"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-120",
+    "title": "Tipagem em __init__ (formatter.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: fmt, datefmt, style, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "core\\logging\\formatter.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-121",
+    "title": "Tipagem em __new__ (logger.py)",
+    "description": "Função '__new__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "core\\logging\\logger.py",
+      "Function: __new__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-122",
+    "title": "Tipagem em __init__ (logger.py)",
+    "description": "Função '__init__' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "core\\logging\\logger.py",
+      "Function: __init__"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-123",
+    "title": "Tipagem em configure (logger.py)",
+    "description": "Função 'configure' possui anotações de tipo incompletas (Args: OK, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "core\\logging\\logger.py",
+      "Function: configure"
+    ],
+    "metadata": {}
+  },
+  {
+    "id": "EVO-124",
+    "title": "Tipagem em get_logger (logger.py)",
+    "description": "Função 'get_logger' possui anotações de tipo incompletas (Args: name, Return: Missing).",
+    "priority": 2,
+    "category": "Modernization",
+    "status": "backlog",
+    "impact_score": 0.4,
+    "requirements": [
+      "core\\logging\\logger.py",
+      "Function: get_logger"
+    ],
+    "metadata": {}
+  }
+]

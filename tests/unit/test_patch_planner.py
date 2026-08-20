@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -10,7 +11,6 @@ from clawai.codebase.project_snapshot import ProjectSnapshot, SourceFile
 from clawai.patching import ChangeRequest, PatchPlanner
 from clawai.providers.base import BaseProvider
 from clawai.providers.base.response import ProviderResponse
-from clawai.prompts.prompt_engine import PromptEngine
 
 
 # Fakes determinísticos
@@ -52,8 +52,13 @@ class FakeLLMPlanner:
 
 
 def make_prompt_engine(provider):
-    # Usa PromptEngine real para exercitar fluxo através do provider, com system prompt existente
-    return PromptEngine(provider)
+    """Cria um PromptEngine mockado para evitar dependência de arquivos de sistema."""
+    mock_engine = MagicMock()
+    if isinstance(provider._content, Exception):
+        mock_engine.execute.side_effect = provider._content
+    else:
+        mock_engine.execute.return_value = provider._content
+    return mock_engine
 
 
 def test_patch_planner_single_operation(tmp_path):
@@ -243,7 +248,7 @@ def test_patch_planner_no_disk_writes(tmp_path):
 
 
 def test_patch_planner_full_integration(tmp_path):
-    # Integra FakeAnalyzer + FakeRetriever + PromptEngine real + Provider fake
+    # Integra FakeAnalyzer + FakeRetriever + PromptEngine mock + Provider fake
     (tmp_path / "a.txt").write_text("ORIG", encoding="utf-8")
 
     analyzer = FakeAnalyzer(files=("a.txt",))

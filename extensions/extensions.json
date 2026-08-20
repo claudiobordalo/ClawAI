@@ -1,0 +1,65 @@
+[
+  {
+    "active": true,
+    "description": "Powers the default AI assistant that works with all your installed models.",
+    "name": "@janhq/assistant-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/assistant-extension",
+    "productName": "Jan Assistant",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/assistant-extension\\dist/index.js",
+    "version": "1.0.2"
+  },
+  {
+    "active": true,
+    "description": "Enables conversations and state persistence via your file system.",
+    "name": "@janhq/conversational-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/conversational-extension",
+    "productName": "Conversational",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/conversational-extension\\dist/index.js",
+    "version": "1.0.0"
+  },
+  {
+    "active": true,
+    "description": "Download and manage files and AI models in Jan.",
+    "name": "@janhq/download-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/download-extension",
+    "productName": "Download Manager",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/download-extension\\dist/index.js",
+    "version": "1.0.0"
+  },
+  {
+    "active": true,
+    "description": "This extension enables llama.cpp chat completion API calls",
+    "name": "@janhq/llamacpp-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/llamacpp-extension",
+    "productName": "llama.cpp Inference Engine",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/llamacpp-extension\\dist/index.js",
+    "version": "1.0.1"
+  },
+  {
+    "active": true,
+    "description": "This extension enables chat completion API calls against the official upstream ggml-org/llama.cpp backend (vanilla, no TurboQuant).",
+    "name": "@janhq/llamacpp-upstream-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/llamacpp-upstream-extension",
+    "productName": "Llama.cpp Inference Engine",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/llamacpp-upstream-extension\\dist/index.js",
+    "version": "1.0.0"
+  },
+  {
+    "active": true,
+    "description": "Registers RAG tools and orchestrates retrieval across parser, embeddings, and vector DB",
+    "name": "@janhq/rag-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/rag-extension",
+    "productName": "RAG Tools",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/rag-extension\\dist/index.js",
+    "version": "0.1.0"
+  },
+  {
+    "active": true,
+    "description": "Vector DB integration using sqlite-vec if available with linear fallback",
+    "name": "@janhq/vector-db-extension",
+    "origin": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/vector-db-extension",
+    "productName": "Vector DB",
+    "url": "C:\\Users\\Clau\\AppData\\Roaming\\Atomic Chat\\data\\extensions\\@janhq/vector-db-extension\\dist/index.js",
+    "version": "0.1.0"
+  }
+]

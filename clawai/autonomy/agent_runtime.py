@@ -17,11 +17,13 @@ from clawai.tools.provider_manager import ProviderManager
 from clawai.tools.providers import LocalToolProvider
 from clawai.tools.tool_executor import ToolExecutor
 from clawai.tools.tool_registry import ToolRegistry
+from clawai.cognition.reflection_engine import ReflectionEngine
 from clawai.debug import (
     RuntimeProfiler,
     RuntimeTrace,
     log,
 )
+
 
 class RouterProtocol(Protocol):
     def ask(self, *, prompt: str, role: Any, system_prompt: str | None = None) -> str: ...
@@ -42,8 +44,13 @@ class AgentRuntime:
         self.provider_manager = self._build_default_provider_manager()
         self.context_manager = ContextManager()
         self.planner = Planner(router=self.router)
-        self.reflector = Reflector(router=self.router)
+        
+        # Initialize ReflectionEngine and inject into Reflector
+        reflection_engine = ReflectionEngine()
+        self.reflector = Reflector(router=self.router, reflection_engine=reflection_engine)
+        
         self.synthesizer = Synthesizer(router=self.router)
+        self.llm_metrics = LLMCallMetrics()
 
     def _llm_budget_reached(self, metrics: LLMCallMetrics) -> bool:
         return len(metrics.calls) >= metrics.max_calls
@@ -59,8 +66,9 @@ class AgentRuntime:
                 "file": file,
             },
         )
+
         state = ExecutionState(objective=prompt)
-        llm_metrics = LLMCallMetrics(max_calls=10)
+        llm_metrics = self.llm_metrics
         history: list[dict[str, Any]] = []
 
         context = self.context_manager.build_prompt(state=state.to_llm(), objective=prompt)
@@ -78,6 +86,7 @@ class AgentRuntime:
                     available_tools=self._available_tools_summary(),
                     state=state.to_llm(),
                 )
+
             trace.add(
                 "planner",
                 {
@@ -99,6 +108,7 @@ class AgentRuntime:
                 execution_state=state,
                 current_iteration=iteration,
             )
+
             action_executor = ActionExecutor(
                 tool_executor=self.tool_executor,
                 provider_manager=self.provider_manager,
@@ -113,6 +123,7 @@ class AgentRuntime:
                 print("EXECUTANDO:", action)
                 if not isinstance(action, dict):
                     continue
+
                 with profiler.measure(action["tool"]) as p:
                     execution = action_executor.execute(action)
                 trace.add(
@@ -151,44 +162,34 @@ class AgentRuntime:
                 "reflection": "",
             }
 
+            # Sempre executa reflexão para avaliar continuidade.
+            llm_metrics.record("reflection", metadata={"iteration": iteration})
+
+            with profiler.measure("reflection") as p:
+                reflection = self.reflector.reflect(
+                    objective=prompt,
+                    context=context,
+                    decision=decision,
+                    tool_results=tool_results,
+                    iteration=iteration,
+                    state=state.to_llm(),
+                )
+
+            trace.add(
+                "reflection",
+                reflection,
+            )
+            log(
+                "REFLECTION",
+                reflection,
+            )
+
+            # Verifica orçamento APÓS a reflexão.
             if self._llm_budget_reached(llm_metrics):
                 history.append(snapshot)
                 state.add_iteration(snapshot)
                 break
 
-            # Só executa reflexão quando houver necessidade.
-            needs_reflection = any(
-                not result.get("success", False)
-                for result in tool_results
-            )
-
-            if needs_reflection:
-                llm_metrics.record("reflection", metadata={"iteration": iteration})
-
-                with profiler.measure("reflection") as p:
-                    reflection = self.reflector.reflect(
-                        objective=prompt,
-                        context=context,
-                        decision=decision,
-                        tool_results=tool_results,
-                        iteration=iteration,
-                        state=state.to_llm(),
-                )
-                trace.add(
-                    "reflection",
-                    reflection,
-                )
-                log(
-                    "REFLECTION",
-                    reflection,
-                )
-            else:
-                reflection = {
-                    "reflection": "",
-                    "should_continue": False,
-                    "needs_retry": False,
-                    "error_type": "none",
-                }
             if reflection["error_type"] != "none":
                 state.register_error(reflection["error_type"])
             if reflection["reflection"]:
@@ -230,6 +231,7 @@ class AgentRuntime:
                     objective=prompt,
                     history=history,
                 )
+
             trace.add(
                 "synthesis",
                 answer,
@@ -282,6 +284,7 @@ class AgentRuntime:
                 resolved = self.provider_manager.get_tool(tool_name)
                 if resolved is None:
                     continue
+
                 provider_name, tool = resolved
                 tools.append(
                     {
@@ -290,6 +293,7 @@ class AgentRuntime:
                         "description": getattr(tool, "description", "") or "",
                     }
                 )
+
             return tools
         except Exception:
             return []

@@ -1,120 +1,64 @@
-﻿:root{
-  color-scheme:dark;
-
-  --bg:#0d1117;
-  --sidebar:#161b22;
-  --panel:#1c2128;
-  --border:#30363d;
-
-  --text:#f0f6fc;
-  --muted:#8b949e;
-
-  --accent:#3b82f6;
+:root {
+  /* --- Obsidian Night Theme --- */
+  
+  /* Backgrounds (Camadas de Profundidade) */
+  --bg-main: #0b0e14;           /* Fundo da aplicação (mais escuro) */
+  --bg-surface: #151921;        /* Painéis, Cards e Tooltips */
+  --bg-sidebar: #0f131a;        /* Barra lateral (um tom acima do fundo) */
+  --bg-header: #1a1f29;         /* Cabeçalhos de painéis */
+  
+  /* Borders & Dividers */
+  --border-subtle: rgba(255, 255, 255, 0.08); /* Divisores quase invisíveis */
+  --border-strong: rgba(255, 255, 255, 0.15); /* Bordas de separação clara */
+  
+  /* Typography */
+  --text-primary: #e2e8f0;      /* Texto principal */
+  --text-secondary: #94a3b8;    /* Textos auxiliares, labels, placeholders */
+  --text-muted: #64748b;        /* Textos desativados ou muito secundários */
+  --text-accent: #3b82f6;       /* Cor de destaque (Azul Elétrico) */
+  
+  /* Accents & States */
+  --accent-primary: #3b82f6;
+  --accent-hover: #2563eb;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  
+  /* Effects */
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --glass-bg: rgba(21, 25, 33, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --transition-fast: 0.2s ease-in-out;
 }
 
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
+/* Implementação do sistema de troca de tema */
+[data-theme='cyber'] {
+  --bg-main: #0d0c14;
+  --bg-surface: #161523;
+  --bg-sidebar: #0e0d1a;
+  --border-subtle: rgba(168, 85, 247, 0.15);
+  --text-primary: #f8fafc;
+  --text-accent: #a855f7;
+  --accent-primary: #a855f7;
 }
 
-html,
-body,
-#root{
-  width:100%;
-  height:100%;
-  overflow:hidden;
-  background:var(--bg);
-  color:var(--text);
-  font-family:Segoe UI,Arial,sans-serif;
+/* Estilos Base de UI para garantir o refinamento */
+body {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
 }
 
-body{
-  background:var(--bg);
+.panel {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
 }
 
-.root{
-  display:grid;
-  grid-template-columns:260px 1fr;
-  height:100vh;
-}
-
-.sidebar{
-  background:var(--sidebar);
-  border-right:1px solid var(--border);
-}
-
-.content{
-  display:flex;
-  flex-direction:column;
-  gap:20px;
-  padding:32px;
-  background:var(--bg);
-}
-
-.chat{
-  flex:1;
-  background:var(--panel)!important;
-  border:1px solid var(--border);
-  border-radius:12px!important;
-  padding:24px;
-  color:var(--text)!important;
-}
-
-.prompt{
-  display:flex;
-  gap:12px;
-  align-items:flex-end;
-}
-
-.MuiTypography-root{
-  color:var(--text)!important;
-}
-
-.MuiListItemText-root span{
-  color:var(--text)!important;
-}
-
-.MuiSvgIcon-root{
-  color:var(--muted)!important;
-}
-
-.MuiDivider-root{
-  border-color:var(--border)!important;
-}
-
-.MuiPaper-root{
-  color:var(--text)!important;
-}
-
-.MuiInputBase-root{
-  color:var(--text)!important;
-  background:var(--panel)!important;
-}
-
-.MuiInputBase-input::placeholder,
-.MuiInputBase-inputMultiline::placeholder{
-  color:var(--muted)!important;
-  opacity:1;
-}
-
-.MuiOutlinedInput-notchedOutline{
-  border-color:var(--border)!important;
-}
-
-.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline{
-  border-color:var(--accent)!important;
-}
-
-.MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline{
-  border-color:var(--accent)!important;
-}
-
-.MuiListItemButton-root{
-  margin:4px 8px;
-  border-radius:8px;
-}
-
-.MuiListItemButton-root:hover{
-  background:#21262d;
+.sidebar {
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-subtle);
 }

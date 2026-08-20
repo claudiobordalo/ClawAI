@@ -1,9 +1,107 @@
 import axios from "axios";
-import type { TreeNode } from "./tree";
+
+// ==================== Environment Detection ====================
+
+const isElectron = typeof window !== 'undefined' && window.clawai !== undefined;
+
+// Backend URL - will be updated by Electron main process
+let backendBaseUrl = isElectron
+    ? "http://127.0.0.1:8000/api"  // Placeholder, updated by updateBackendUrl()
+    : "http://127.0.0.1:8000/api";
+
+// Initialize backend URL asynchronously
+if (isElectron) {
+    updateBackendUrl();
+}
+
+// ==================== Axios Instance ====================
 
 const api = axios.create({
-    baseURL: "http://127.0.0.1:8000/api"
+    baseURL: backendBaseUrl,
+    timeout: 30000,
+    headers: {
+        "Content-Type": "application/json",
+    },
 });
+
+// ==================== Electron Bridge ====================
+
+interface ElectronBridge {
+    backend: {
+        start: () => Promise<boolean>;
+        stop: () => Promise<boolean>;
+        isRunning: () => Promise<boolean>;
+        getPort: () => Promise<number>;
+    };
+    dialog: {
+        openFile: (options?: Electron.OpenDialogOptions) => Promise<string[]>;
+        saveFile: (options?: Electron.SaveDialogOptions) => Promise<string | null>;
+    };
+    shell: {
+        openExternal: (url: string) => Promise<void>;
+        openPath: (filePath: string) => Promise<string>;
+    };
+    app: {
+        getPath: (name: string) => Promise<string>;
+        getUserDataPath: () => Promise<string>;
+    };
+    window: {
+        minimize: () => Promise<void>;
+        maximize: () => Promise<void>;
+        close: () => Promise<void>;
+    };
+}
+
+declare global {
+    interface Window {
+        clawai?: ElectronBridge;
+    }
+}
+
+/**
+ * Get the current backend port, checking Electron bridge if available
+ */
+async function getBackendPort(): Promise<number> {
+    if (isElectron && window.clawai?.backend) {
+        try {
+            return await window.clawai.backend.getPort();
+        } catch {
+            return 8000;
+        }
+    }
+    return 8000;
+}
+
+/**
+ * Update the backend URL with the current port
+ */
+export async function updateBackendUrl(): Promise<void> {
+    const port = await getBackendPort();
+    backendBaseUrl = `http://127.0.0.1:${port}/api`;
+    api.defaults.baseURL = backendBaseUrl;
+}
+
+/**
+ * Initialize backend via Electron bridge
+ */
+export async function initBackend(): Promise<boolean> {
+    if (!isElectron || !window.clawai?.backend) {
+        return false;
+    }
+    return await window.clawai.backend.start();
+}
+
+/**
+ * Stop backend via Electron bridge
+ */
+export async function shutdownBackend(): Promise<void> {
+    if (!isElectron || !window.clawai?.backend) {
+        return;
+    }
+    await window.clawai.backend.stop();
+}
+
+// ==================== Types ====================
 
 export type SearchTimings = {
     memory_ms?: number;
@@ -195,6 +293,38 @@ export type WorkspaceSummary = {
     workspaces: WorkspaceInfo[];
 };
 
+export type ResourceMonitor = {
+    cpu_percent: number;
+    memory: {
+        total: number;
+        used: number;
+        percent: number;
+    };
+    gpu?: {
+        used_memory_mb: number;
+        total_memory_mb: number;
+        percent: number;
+        temperature?: number;
+        power_watts?: number;
+    }[];
+    disk: {
+        total: number;
+        used: number;
+        percent: number;
+    };
+};
+
+export type HealthStatus = {
+    status: string;
+    uptime_seconds: number;
+    memory_usage_mb: number;
+    threads: number;
+    active_agents: number;
+    total_messages: number;
+};
+
+// ==================== API Functions ====================
+
 export async function sendChat(prompt: string): Promise<ChatReply> {
     const response = await api.post("/chat", { prompt });
     if (typeof response.data === "string") {
@@ -280,4 +410,82 @@ export async function loadFile(path: string, workspaceId?: string): Promise<stri
 
 export async function saveFile(path: string, content: string, workspaceId?: string): Promise<void> {
     await api.post("/file", { path, content, ...(workspaceId ? { workspace_id: workspaceId } : {}) });
+}
+
+export async function getResourceMonitor(): Promise<ResourceMonitor> {
+    const response = await api.get("/monitor/resources");
+    return response.data as ResourceMonitor;
+}
+
+export async function getHealthStatus(): Promise<HealthStatus> {
+    const response = await api.get("/monitor/health");
+    return response.data as HealthStatus;
+}
+
+// ==================== Dialog Helpers ====================
+
+export async function openFileDialog(): Promise<string | null> {
+    if (isElectron && window.clawai?.dialog) {
+        const files = await window.clawai.dialog.openFile({
+            properties: ['openFile'],
+        });
+        return files[0] ?? null;
+    }
+    return null;
+}
+
+export async function saveFileDialog(defaultName?: string): Promise<string | null> {
+    if (isElectron && window.clawai?.dialog) {
+        return await window.clawai.dialog.saveFile({
+            defaultFileName: defaultName,
+        });
+    }
+    return null;
+}
+
+// ==================== Model Info ====================
+
+export type ModelInfo = {
+    id: string;
+    name: string;
+    provider: string;
+    loaded: boolean;
+    context_length: number;
+    multimodal: boolean;
+    function_calling: boolean;
+    embeddings: boolean;
+    gpu: boolean;
+    vram_mb?: number;
+    total_vram_mb?: number;
+    tokens_per_second?: number;
+    status?: string;
+};
+
+export type ModelProvider = {
+    name: string;
+    type: string;
+    url?: string;
+    models: ModelInfo[];
+    status: string;
+    config?: Record<string, unknown>;
+};
+
+export async function listModels(): Promise<ModelProvider[]> {
+    const response = await api.get("/models");
+    return response.data as ModelProvider[];
+}
+
+export async function getModelInfo(modelId: string): Promise<ModelInfo> {
+    const response = await api.get(`/models/${modelId}`);
+    return response.data as ModelInfo;
+}
+
+export async function switchModel(modelId: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post(`/models/switch`, { model_id: modelId });
+    return response.data as { success: boolean; message: string };
+}
+
+export async function getModelProviders(): Promise<{ ollama: ModelProvider; lmstudio: ModelProvider; openai: ModelProvider }> {
+    const response = await api.get("/models/providers");
+    return response.data;
 }

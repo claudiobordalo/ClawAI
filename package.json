@@ -1,11 +1,70 @@
 {
+  "name": "clawai",
+  "version": "1.0.0",
+  "description": "ClawAI Desktop - AI Engineering Platform",
+  "main": "frontend/electron/main.ts",
   "private": true,
   "scripts": {
     "backend": "uv run python -m uvicorn api:app --reload",
     "frontend": "cd frontend && npm run dev",
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\""
+    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
+    "build": "cd frontend && npm run build",
+    "electron:dev": "concurrently \"npm run backend\" \"vite --config frontend/vite.config.ts\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "electron:build:win": "npm run build && electron-builder --win",
+    "electron:build:mac": "npm run build && electron-builder --mac",
+    "electron:build:linux": "npm run build && electron-builder --linux",
+    "bundle": "python python/bundle.py",
+    "bundle:clean": "python python/bundle.py --clean"
+  },
+  "build": {
+    "appId": "com.clawai.desktop",
+    "productName": "ClawAI",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "frontend/dist/**/*",
+      "frontend/electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python"
+      },
+      {
+        "from": "api.py",
+        "to": "api.py"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "frontend/public/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "frontend/public/icon.ico",
+      "uninstallerIcon": "frontend/public/icon.ico",
+      "installerHeaderIcon": "frontend/public/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ClawAI"
+    }
   },
   "devDependencies": {
-    "concurrently": "^10.0.3"
+    "concurrently": "^10.0.3",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.4.0",
+    "vite": "^6.0.0"
   }
 }
